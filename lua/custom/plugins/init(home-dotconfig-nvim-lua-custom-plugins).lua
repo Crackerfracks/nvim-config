@@ -4,38 +4,38 @@
 -- See the kickstart.nvim README for more information
 
 return {
-  {
-    "nvim-neorg/neorg",
-    config = function()
-      require("neorg").setup({
-        load = {
-          ["core.defaults"] = {},
-          ["core.dirman"] = {
-            config = {
-              workspaces = {
-                neovim_config = "~/nvim_config_notes",
-                notes = "~/notes",
-                code = "~/code",
-                neorg_tutorial = "~/neorg_tutorial",
-                work = "~/Documents/NEW_WORK_NOTES/NeorgWorkspace",
-              },
-              default_workspace = "work"
-            },
-          },
-          ["core.concealer"] = {
-            config = { -- We added a `config` table!
-              icon_preset = "varied", -- And we set our option here.
-            },
-          },
-          ["core.summary"] = {},
-          ["core.export"] = {},
-          ["core.journal"] = {},
-        }
-      })
-    end,
-    lazy = false, -- Disable lazy loading as some `lazy.nvim` distributions set `lazy = true` by default
-    version = "*", -- Pin Neorg to the latest stable release
-  },
+  -- {
+  --   "nvim-neorg/neorg",
+  --   config = function()
+  --     require("neorg").setup({
+  --       load = {
+  --         ["core.defaults"] = {},
+  --         ["core.dirman"] = {
+  --           config = {
+  --             workspaces = {
+  --               neovim_config = "~/nvim_config_notes",
+  --               notes = "~/notes",
+  --               code = "~/code",
+  --               neorg_tutorial = "~/neorg_tutorial",
+  --               work = "~/Documents/NEW_WORK_NOTES/NeorgWorkspace",
+  --             },
+  --             default_workspace = "work"
+  --           },
+  --         },
+  --         ["core.concealer"] = {
+  --           config = { -- We added a `config` table!
+  --             icon_preset = "varied", -- And we set our option here.
+  --           },
+  --         },
+  --         ["core.summary"] = {},
+  --         ["core.export"] = {},
+  --         ["core.journal"] = {},
+  --       }
+  --     })
+  --   end,
+  --   lazy = false, -- Disable lazy loading as some `lazy.nvim` distributions set `lazy = true` by default
+  --   version = "*", -- Pin Neorg to the latest stable release
+  -- },
   {
     "epwalsh/obsidian.nvim",
     version = "*",  -- recommended, use latest release instead of latest commit
