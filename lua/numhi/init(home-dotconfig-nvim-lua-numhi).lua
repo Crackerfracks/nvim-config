@@ -67,6 +67,10 @@ function M.create_keymaps()
   map(leader .. "u", M.undo,               "NumHi: undo")
   map(leader .. "<C-r>", M.redo,           "NumHi: redo")
 
+  -- (New) Edit note for highlight under cursor
+  map(leader .. "n", function() require("numhi.core").edit_note() end,
+      "NumHi: edit note for highlight")
+
   -- 4. palette cycle  (keep on p – only in Normal mode)
   vim.keymap.set("n", leader .. "p",
     function() M.cycle_palette(1) end,
@@ -78,13 +82,19 @@ end
 -----------------------------------------------------------------------
 function M.status_component()
   local pal = M.state.active_palette
+  -- Create a colored block for palette: use slot 1's color as swatch
+  local base_hl = core.ensure_hl(pal, 1)
+  local swatch = string.format("%%#%s#▉%%*", base_hl)
+  -- Build digit indicators as before
   local parts = {}
   for n = 1, 10 do
     local hl = core.ensure_hl(pal, n)
-    table.insert(parts, ("%%#%s#%s%%*"):format(hl, (n % 10 == 0) and "0" or tostring(n)))
+    table.insert(parts, string.format("%%#%s#%s%%*", hl, (n % 10 == 0) and "0" or tostring(n)))
   end
-  return ("[%s %s] "):format(pal, table.concat(parts, ""))
+  -- Return something like "[█ PAL 1234567890]"
+  return string.format("[%s %s %s] ", swatch, pal, table.concat(parts, ""))
 end
+
 -----------------------------------------------------------------------
 --  Attach to user’s status-line impls (Mini / lualine / vanilla) -----
 -----------------------------------------------------------------------

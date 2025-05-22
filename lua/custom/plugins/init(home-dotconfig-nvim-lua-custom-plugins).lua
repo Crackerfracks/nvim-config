@@ -401,7 +401,7 @@ return {
       { "<leader>Z",  function() require("snacks").zen.zoom() end,         desc = "Toggle Zoom" },
       { "<leader><leader>.",  function() require("snacks").scratch() end,          desc = "Toggle Scratch Buffer" },
       { "<leader><leader>S", function() require("snacks").scratch.select() end, desc = "Select Scratch Buffer" },
-      { "<leader><leader>n",  function() require("snacks").notifier.show_history() end, desc = "Notification History" },
+      { "<leader><leader><leader>n",  function() require("snacks").notifier.show_history() end, desc = "Notification History" },
       { "<leader>bd", function() require("snacks").bufdelete() end,        desc = "Delete Buffer" },
       { "<leader>cR", function() require("snacks").rename.rename_file() end, desc = "Rename File" },
       { "<leader>gB", function() require("snacks").gitbrowse() end,        desc = "Git Browse", mode = { "n", "v" } },

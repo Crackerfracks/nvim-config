@@ -876,11 +876,14 @@ require('lazy').setup({
           -- capabilities = {},
           settings = {
             Lua = {
-              completion = {
-                callSnippet = 'Replace',
+              completion = { callSnippet = 'Replace' },
+              diagnostics = {
+                globals = { 'vim' },
+                disable = { 'missing-fields' },
               },
-              -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-              diagnostics = { disable = { 'missing-fields' }, },
+              workspace = {
+                library = vim.api.nvim_get_runtime_file("", true),
+              },
             },
           },
         },

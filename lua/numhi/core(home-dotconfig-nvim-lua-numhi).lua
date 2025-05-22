@@ -315,5 +315,73 @@ function C.ns_for(pal)
   return ns_ids[pal] 
 end
 
+-- In lua/numhi/core.lua, add:
+function C.edit_note()
+  local pal_list = State.opts.palettes
+  local l, c = unpack(api.nvim_win_get_cursor(0))
+  -- Search each palette for an extmark at the cursor position
+  for _, pal in ipairs(pal_list) do
+    local ns = ns_ids[pal]
+    local marks = api.nvim_buf_get_extmarks(0, ns, {l-1, c}, {l-1, c}, {details=true})
+    if marks and #marks > 0 then
+      local m = marks[1]
+      local slot = tonumber(m[4].hl_group:match("_(%d+)$"))
+      local id = m[1]
+      -- Existing note and tags, if any
+      local note = (m[4].user_data and m[4].user_data.note) or ""
+      local tags = (m[4].user_data and m[4].user_data.tags) or {}
+
+      -- Create a new scratch buffer
+      local buf = api.nvim_create_buf(false, true)
+      api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
+      api.nvim_buf_set_name(buf, ('NumHiNote %s-%d'):format(pal, slot))
+      -- Pre-fill with existing note text
+      if note ~= "" then
+        api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(note, "\\n"))
+      end
+      api.nvim_buf_set_option(buf, 'filetype', 'markdown')
+
+      -- Open floating window at cursor
+      local width = math.floor(vim.o.columns * 0.5)
+      local height = math.floor(vim.o.lines * 0.3)
+      local win = api.nvim_open_win(buf, true, {
+        relative = 'cursor',
+        row = 1, col = 0,
+        width = width,
+        height = height,
+        style = 'minimal',
+        border = 'rounded',
+      })
+
+      -- When writing the buffer, capture content and update extmark
+      api.nvim_create_autocmd('BufWriteCmd', {
+        buffer = buf,
+        callback = function()
+          local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+          local content = table.concat(lines, "\\n")
+          -- Extract tags (words preceded by #)
+          local new_tags = {}
+          for _, line in ipairs(lines) do
+            for tag in line:gmatch('#(%w+)') do
+              table.insert(new_tags, tag)
+            end
+          end
+          -- Update extmark with note and tags
+          api.nvim_buf_set_extmark(0, ns, l-1, c, {
+            id = id,
+            user_data = { note = content, tags = new_tags },
+          })
+          -- Close the floating window
+          if api.nvim_win_is_valid(win) then
+            api.nvim_win_close(win, true)
+          end
+        end,
+      })
+      return
+    end
+  end
+  print("No NumHi highlight under cursor")
+end
+
 return C
 
