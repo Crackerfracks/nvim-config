@@ -1,4 +1,3 @@
-
 # Never track host-specific or build artefacts
 swap-tree/
 undo-tree/

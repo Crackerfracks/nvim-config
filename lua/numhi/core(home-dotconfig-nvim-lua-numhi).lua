@@ -14,6 +14,12 @@ local State                     -- back-pointer filled by setup()
 ---------------------------------------------------------------------
 --  Helpers ----------------------------------------------------------
 ---------------------------------------------------------------------
+
+-- lua/numhi/core.lua  (ADD at top of file)
+local function has_visual_marks()
+  return vim.fn.line("'<") ~= 0 and vim.fn.line("'>") ~= 0
+end
+
 local function slot_to_color(pal, slot)
   local base_hex = palettes[pal][((slot - 1) % 10) + 1]
   if slot <= 10 then return base_hex end
@@ -108,6 +114,7 @@ end
 ---------------------------------------------------------------------
 --  Highlight action -------------------------------------------------
 ---------------------------------------------------------------------
+-- lua/numhi/core.lua  (REPLACE the first 25 lines of C.highlight)
 function C.highlight(slot)
   slot = tonumber(slot)
   if not slot or slot < 1 or slot > 99 then return end
@@ -117,12 +124,16 @@ function C.highlight(slot)
   local group = ensure_hl(pal, slot)
   local marks = {}
 
+  -- NEW: prefer visual marks if they exist, even in Normal mode
+  local v_ok = has_visual_marks()
   local mode = vim.fn.mode()
-  if mode:match("^[vV]") then
-    local p1 = { unpack(vim.fn.getpos("'<"), 2, 3) }   -- {lnum,col}
+
+  if v_ok or mode:match("^[vV]") then
+    local p1 = { unpack(vim.fn.getpos("'<"), 2, 3) }
     local p2 = { unpack(vim.fn.getpos("'>"), 2, 3) }
-    p1[1], p1[2] = p1[1] - 1, p1[2] - 1               -- 0-index
-    p2[1], p2[2] = p2[1] - 1, p2[2] - 1
+    p1[1], p1[2] = p1[1]-1, p1[2]-1
+    p2[1], p2[2] = p2[1]-1, p2[2]-1
+    -- … (rest of original Visual branch unchanged) …
     local last = api.nvim_buf_line_count(0) - 1         -- 0-based last line
     if p1[1] < 0 or p2[1] < 0 then return end           -- marks not set yet
     p1[1] = math.min(p1[1], last)                       -- never past EOF
@@ -195,12 +206,17 @@ function C.collect_digits()
     if ch:match("%d") and #digits < 2 then
       digits = digits .. ch
       prompt()
+      -- lua/numhi/collect_digits()  REPLACE the <CR> branch
     elseif ch == "\r" then
-      C.highlight(digits)
-      echo("")                                                 -- clear
-      return
-    else
-      echo("")                                                 -- cancel
+      local num = digits
+      -- leave Visual and wait one tick so '< and '>' are updated
+      vim.api.nvim_feedkeys(
+        vim.api.nvim_replace_termcodes("<Esc>", true, false, true),
+        "x", false)
+      vim.schedule(function()
+        C.highlight(num)
+      end)
+      echo("")
       return
     end
   end
