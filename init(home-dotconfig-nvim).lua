@@ -93,7 +93,8 @@ P.S. You can delete this when you're done too. It's your config now! :)
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ','
-
+vim.g.loaded_netrw       = 1   -- hard-disable netrw runtime files
+vim.g.loaded_netrwPlugin = 1
 -- Custom F13 handling
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
@@ -146,7 +147,7 @@ vim.opt.signcolumn = 'yes'
 -- Decrease update time
 vim.opt.updatetime = 250
 -- Decrease mapped sequence wait time
-vim.opt.timeoutlen = 300
+vim.opt.timeoutlen = 250
 
 -- Configure how new splits should be opened
 vim.opt.splitright = true
@@ -198,9 +199,15 @@ vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' }
 -- vim.keymap.set("n", "<leader>pv", vim.cmd.Ex, { desc = "Open netrw file explorer" })
 -- END <leader>pv backup
 
--- Move lines in visual mode
-vim.keymap.set("v", "J", ":m '>+1<CR>gv=gv", { desc = "Move selected lines down" })
-vim.keymap.set("v", "K", ":m '<-2<CR>gv=gv", { desc = "Move selected lines up" })
+
+vim.keymap.set("n", "<leader>pv", function()
+  local dir = vim.fn.expand("%:p:h")  -- current file’s directory
+  if dir == "" then
+    dir = vim.loop.cwd()              -- fallback: CWD
+  end
+  require("oil").open(dir)            -- Oil handles both cases
+end, { desc = "Open Oil file-explorer" })
+
 
 -- Join line below to current line, keep cursor
 vim.keymap.set("n", "J", "mzJ`z", { desc = "Join with next line, re-center cursor" })
@@ -244,115 +251,24 @@ vim.keymap.set("n", "<leader><leader><leader>s", ":%s/\\<<C-r><C-w>\\>/<C-r><C-w
 -- Make file executable
 vim.keymap.set("n", "<leader>x", "<cmd>!chmod +x %<CR>", { silent = true, desc = "Make current file executable" })
 
--- [ BEGIN oil.nvim -> netrw toggle
-
-
--- Remove the default Kickstart mapping for <leader>pv (if present)
--- and implement our custom explorer toggle mapping:
-vim.g.last_explorer = "oil"  -- track last used explorer ("netrw" or "oil")
-
-local function open_explorer(explorer, dir)
-  if explorer == "oil" then
-    if dir then
-      vim.cmd("Oil ")
-    else
-      vim.cmd("Oil")
-    end
-  else  -- "netrw"
-    if dir then
-      vim.cmd("edit " .. vim.fn.fnameescape(dir))
-    else
-      vim.cmd("Explore")
-    end
-  end
-end
-
-vim.keymap.set("n", "<leader>pv", function()
-  -- Open the last used explorer in current file's directory (or CWD if none)
-  local dir = ""
-  local curr_file = vim.api.nvim_buf_get_name(0)
-  if curr_file ~= "" then
-    dir = vim.fn.fnamemodify(curr_file, ":p:h")
-  else
-    dir = vim.loop.cwd()
-  end
-  open_explorer(vim.g.last_explorer or "netrw", dir)
-  -- Note: vim.g.last_explorer remains unchanged (still the explorer we opened)
-end, { desc = "Open last used file explorer" })
-
--- Autocommands to set up buffer-local mappings for netrw and Oil
-local explorer_group = vim.api.nvim_create_augroup("CustomExplorerMaps", { clear = true })
-
--- **Netrw**: remap keys when netrw directory listing is open
+-- Fucking autolists, goddamn this was a pain in the ass
 vim.api.nvim_create_autocmd("FileType", {
-  group = explorer_group,
-  pattern = "netrw",
-  callback = function(ctx)
-    local buf = ctx.buf
-
-    -- 1.  <BS>   → invoke the built‑in “go up one dir” (original ‘-’)
-    vim.api.nvim_buf_set_keymap(buf, "n", "<BS>", "-", { noremap = false, silent = true }) -- <-THIS DOES NOT WORK, I CANNOT GO UP A DIRECTORY IN netrw VIA KEYBINDING!!! NEEDS IMMEDIATE FIX!!! (Also, let's make oil the default so I have to learn how to use it.)
-
-    -- 2.  <leader>s → invoke built‑in sort toggle (original ‘s’)
-    vim.api.nvim_buf_set_keymap(buf, "n", "<leader>s", "s", { noremap = false, silent = true }) -- <-- THIS DOES NOT WORK, I CANNOT SORT DIRECTORY CONTENTS IN netrw VIA KEYBINDING!!! NEEDS IMMEDIATE FIX!!! (Also, let's make oil the default so I have to learn how to use it.)
+  desc = "markdown-toggle.nvim keymaps",
+  pattern = { "markdown", "markdown.mdx" },
+  callback = function(args)
+    local opts = { silent = true, noremap = true, buffer = args.buf }
+    local toggle = require("markdown-toggle")
 
 
-    -- 3.  <Tab>  → switch to Oil in same dir (unchanged)
-    vim.keymap.set("n", "<Tab>", function()
-      local dir = vim.b.netrw_curdir
-      vim.g.last_explorer = "oil"
-      if dir then
-        vim.cmd("Oil " .. vim.fn.fnameescape(dir))
-      else
-        vim.cmd("Oil")
-      end
-    end, { buffer = buf, silent = true, desc = "Switch to Oil explorer" })
+    vim.keymap.set({ "n", "x" }, "<CR>", toggle.checkbox, opts)
+    vim.keymap.set({ "n", "x" }, "<M-CR>", toggle.checkbox_cycle, opts)
+    -- Option-switching keymaps
+    -- Keymap configurations will be added here for each feature
 
-    -- 4.  Delete netrw’s own ‘s’ and ‘-’ so Flash can capture them
-    pcall(vim.api.nvim_buf_del_keymap, buf, "n", "s") -- <- It's stuff like this that makes me not understand programming... Aren't we calling on this keymap up there to perform 'sort directory contents'?
-    pcall(vim.api.nvim_buf_del_keymap, buf, "n", "-") -- <- It's stuff like this that makes me not understand programming... Aren't we calling on this keymap up there to perform 'go up a directory'?
   end,
 })
 
--- **Oil**: remap keys when Oil file explorer is open
-vim.api.nvim_create_autocmd("FileType", {
-  group = explorer_group,
-  pattern = "oil",
-  callback = function()
-    local buf = vim.api.nvim_get_current_buf()
-    local oil_actions = require("oil.actions")
-    -- `<BS>`: go up one directory (replace default `-` key)
-    vim.keymap.set("n", "<BS>", function()  
-      if oil_actions.parent and oil_actions.parent.callback then
-        oil_actions.parent.callback()
-      end  -- <-THIS WORKS JUST FINE!!
-    end, { buffer = buf, silent = true, desc = "Up one directory" })
-    -- `<leader>s`: toggle sort (replace default `gs` mapping to `s`)
-    vim.keymap.set("n", "<leader>s", function()
-      if oil_actions.change_sort then
-        if type(oil_actions.change_sort) == "table" and oil_actions.change_sort.callback then
-          oil_actions.change_sort.callback()
-        elseif type(oil_actions.change_sort) == "function" then
-          oil_actions.change_sort()
-        end -- <- THIS WORKS JUST FINE!! 
-      end
-    end, { buffer = buf, silent = true, desc = "Toggle sort mode" })
-    -- `<Tab>`: switch to netrw explorer in the same directory
-    vim.keymap.set("n", "<Tab>", function()
-      local curr_dir = require("oil").get_current_dir()
-      vim.g.last_explorer = "netrw"  -- next time, open netrw by default
-      if curr_dir then
-        vim.cmd("keepalt edit " .. vim.fn.fnameescape(curr_dir))
-      else -- <- THIS WORKS JUST FINE!!
-        vim.cmd("Explore")
-      end -- <- THIS WORKS JUST FINE!!
-    end, { buffer = buf, silent = true, desc = "Switch to Netrw explorer" })
-    -- Disable Oil's default `-` mapping and prevent `s` (e.g. Flash.nvim) in Oil buffer
-    pcall(vim.keymap.del, "n", "-", { buffer = buf })
-  end,
-})
 
--- ] END oil.nvim -> netrw toggle
 
 
 -- ─── helpers ────────────────────────────────────────────────────────────────
@@ -412,10 +328,10 @@ vim.api.nvim_set_keymap(
 --  Use CTRL+<hjkl> to switch between windows
 --
 --  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+-- vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+-- vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+-- vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+-- vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`

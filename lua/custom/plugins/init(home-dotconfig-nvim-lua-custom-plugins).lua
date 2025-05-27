@@ -702,50 +702,207 @@ return {
       vim.keymap.set('n', '<leader><leader>l', require('smart-splits').swap_buf_right)
     end
   },
+  -- {
+  --   "folke/flash.nvim",
+  --   event = "VeryLazy",
+  --   ---@type Flash.Config 
+  --   opts = {
+  --     labels = "abcdefghijklmnopqrstuvwxyz",
+  --     search = {
+  --       -- search/jump across all windows
+  --       multi_window = true,
+  --       -- search origin direction
+  --       forward = true,
+  --       -- when wrap is false, only find matches in the given direction
+  --       ---@type Flash.Pattern.Mode
+  --       -- possible values: exact, regular, fuzzy or 'fun(str)'
+  --       mode = "exact",
+  --     },
+  --     jump = {
+  --       offset = 0,
+  --     },
+  --     label = {
+  --       rainbow = {
+  --         enabled = true,
+  --         shade = 5
+  --       },
+  --     },
+  --   },
+  --   -- stylua: ignore
+  --   keys = {
+  --     { "s", mode = { "n", "x", "o" }, function() require("flash").jump() end, desc = "Flash" },
+  --     { "S", mode = { "n", "x", "o" }, function() require("flash").treesitter() end, desc = "Flash Treesitter" },
+  --     { "-", mode = { "n", "x", "o" }, function() require("flash").jump({
+  --       search = { mode = "search", max_length = 0 },
+  --       label = { after = { 0, 0 } },
+  --       pattern = "^"
+  --     }) end, desc = "Jump to Line Beginning" },
+  --     { "$", mode = { "n", "x", "o" }, function()
+  --       require("flash").jump({
+  --         search = { mode = "search", max_length = 0 },
+  --         label  = { after = {0, 0} },
+  --         pattern = "\\S$"   -- regex: last non-space character on each line
+  --       })
+  --     end, desc = "Flash → Jump to Line End (exclusive)" },
+  --     { "_", mode = { "n", "x", "o" }, function()
+  --       require("flash").jump({
+  --         search  = { mode = "search", max_length = 0 },
+  --         label   = { after = {0,0} },
+  --         pattern = "^\\s*\\zs\\S",
+  --       })
+  --     end, desc = "Flash → First Non-blank" },
+  --     { "r", mode = "o", function() require("flash").remote() end, desc = "Remote Flash" },
+  --     { "R", mode = { "o", "x" }, function() require("flash").treesitter_search() end, desc = "Treesitter Search" },
+  --     { "<c-s>", mode = { "c" }, function() require("flash").toggle() end, desc = "Toggle Flash Search" },
+  --   },
+  -- },
+-- ─────────────────────────────────────────────────────────────────────────────
+--  Advanced flash.nvim specification
+--  * full set of word / WORD and char motions (w/W b/B e/E ge/gE f/F t/T)
+--  * line-boundary & first-non-blank jumps
+--  * Treesitter, remote, toggle (kept)
+--  * buffer-wide URL / link cleaners
+-- ─────────────────────────────────────────────────────────────────────────────
   {
     "folke/flash.nvim",
     event = "VeryLazy",
-    ---@type Flash.Config 
+
+    ---@type Flash.Config
     opts = {
       labels = "abcdefghijklmnopqrstuvwxyz",
       search = {
-        -- search/jump across all windows
         multi_window = true,
-        -- search origin direction
         forward = true,
-        -- when wrap is false, only find matches in the given direction
-        ---@type Flash.Pattern.Mode
-        -- possible values: exact, regular, fuzzy or 'fun(str)'
         mode = "exact",
       },
-      jump = {
-        offset = 0,
-      },
-      label = {
-        rainbow = {
-          enabled = true,
-          shade = 5
-        },
-      },
+      jump  = { offset = 0 },
+      label = { rainbow = { enabled = true, shade = 5 } },
     },
+
     -- stylua: ignore
     keys = {
-      { "s", mode = { "n", "x", "o" }, function() require("flash").jump() end, desc = "Flash" },
-      { "S", mode = { "n", "x", "o" }, function() require("flash").treesitter() end, desc = "Flash Treesitter" },
-      { "-", mode = { "n", "x", "o" }, function() require("flash").jump({
-        search = { mode = "search", max_length = 0 },
-        label = { after = { 0, 0 } },
-        pattern = "^"
-      }) end, desc = "Jump to Line Beginning" },
-      { "$", mode = { "n", "x", "o" }, function() require("flash").jump({
-        search = { mode = "search", max_length = 0 },
-        label = { after = { 0, 0 } },
-        pattern = "$"
-      }) end, desc = "Jump to Line End" },
-      { "r", mode = "o", function() require("flash").remote() end, desc = "Remote Flash" },
-      { "R", mode = { "o", "x" }, function() require("flash").treesitter_search() end, desc = "Treesitter Search" },
-      { "<c-s>", mode = { "c" }, function() require("flash").toggle() end, desc = "Toggle Flash Search" },
+      ----------------------------------------------------------------------------
+      -- basic Flash
+      ----------------------------------------------------------------------------
+      { "s", mode = { "n", "x", "o" },
+        function() require("flash").jump() end,                         desc = "Flash" },
+      { "S", mode = { "n", "x", "o" },
+        function() require("flash").treesitter() end,                   desc = "Flash Treesitter" },
+
+      ----------------------------------------------------------------------------
+      -- character motions (f/F/t/T) — Flash “char” mode
+      ----------------------------------------------------------------------------
+      { "f", mode = { "n", "x", "o" },
+        function() require("flash").jump({ mode = "char", search = { forward = true  } }) end,
+        desc = "Flash f" },
+      { "F", mode = { "n", "x", "o" },
+        function() require("flash").jump({ mode = "char", search = { forward = false } }) end,
+        desc = "Flash F" },
+      { "t", mode = { "n", "x", "o" },
+        function() require("flash").jump({ mode = "char", search = { forward = true  }, jump = { offset = -1 } }) end,
+        desc = "Flash t" },
+      { "T", mode = { "n", "x", "o" },
+        function() require("flash").jump({ mode = "char", search = { forward = false }, jump = { offset =  1 } }) end,
+        desc = "Flash T" },
+
+      ----------------------------------------------------------------------------
+      -- word / WORD motions (w/W b/B) ------------------------------------------
+      ----------------------------------------------------------------------------
+      { "w", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = true,  wrap = false, max_length = 0 }, pattern = [[\<]],  label = { after = {0,0} } }) end,
+        desc = "Flash → next word" },
+    -- "W"  – next WORD start (first non-blank char after whitespace or SOL)
+      { "W", mode = { "n", "x", "o" },
+        function() require("flash").jump({
+          search  = { mode = "search", forward = true, wrap = false, max_length = 0 },
+          pattern = [[\%(^\|\s\)\zs\S]],
+          label   = { after = { 0, 0 } },
+        }) end, desc = "Flash → next WORD" },
+      { "b", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = false, wrap = false, max_length = 0 }, pattern = [[\<]],  label = { after = {0,0} } }) end,
+        desc = "Flash ← previous word" },
+      -- "B"  – previous WORD start
+      { "B", mode = { "n", "x", "o" },
+        function() require("flash").jump({
+          search  = { mode = "search", forward = false, wrap = false, max_length = 0 },
+          pattern = [[\%(^\|\s\)\zs\S]],
+          label   = { after = { 0, 0 } },
+        }) end, desc = "Flash ← previous WORD" },
+
+      ----------------------------------------------------------------------------
+      -- word-end motions (e/E ge/gE) -------------------------------------------
+      ----------------------------------------------------------------------------
+      { "e", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = true,  wrap = false, max_length = 0 }, pattern = [[\>]],  label = { after = {0,0} }, jump = { offset = -1 } }) end,
+        desc = "Flash → word end" },
+      { "E", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = true,  wrap = false, max_length = 0 }, pattern = [[\S\zs\s\|\S$]], label = { after = {0,0} } }) end,
+        desc = "Flash → WORD end" },
+      { "ge", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = false, wrap = false, max_length = 0 }, pattern = [[\>]],  label = { after = {0,0} }, jump = { offset = -1 } }) end,
+        desc = "Flash ← word end" },
+      { "gE", mode = { "n", "x", "o" },
+        function() require("flash").jump({ search = { mode = "search", forward = false, wrap = false, max_length = 0 }, pattern = [[\S\zs\s\|\S$]], label = { after = {0,0} } }) end,
+        desc = "Flash ← WORD end" },
+
+      ----------------------------------------------------------------------------
+      -- line boundary / first non-blank ----------------------------------------
+      ----------------------------------------------------------------------------
+      { "-", mode = { "n", "x", "o" },                                           -- line start
+        function()
+          require("flash").jump({
+            search  = { mode = "search", max_length = 0 },
+            label   = { after = { 0, 0 } },
+            pattern = "^",
+          })
+        end,
+        desc = "Jump to line beginning" },
+
+      { "$", mode = { "n", "x", "o" },                                           -- line end (exclusive)
+        function()
+          require("flash").jump({
+            search  = { mode = "search", max_length = 0 },
+            label   = { after = { 0, 0 } },
+            pattern = [[\S$]],
+          })
+        end,
+        desc = "Jump to line end (exclusive)" },
+
+      { "_", mode = { "n", "x", "o" },                                           -- first non-blank
+        function()
+          require("flash").jump({
+            search  = { mode = "search", max_length = 0 },
+            label   = { after = { 0, 0 } },
+            pattern = [[^\s*\zs\S]],
+          })
+        end,
+        desc = "Jump to first non-blank" },
+
+      ----------------------------------------------------------------------------
+      -- Treesitter / remote / toggle -------------------------------------------
+      ----------------------------------------------------------------------------
+      { "r",       mode = "o",       function() require("flash").remote()             end, desc = "Remote Flash" },
+      { "R",       mode = { "o","x" },function() require("flash").treesitter_search() end, desc = "Treesitter search" },
+      { "<C-s>",   mode = "c",       function() require("flash").toggle()             end, desc = "Toggle Flash search" },
     },
+
+    ----------------------------------------------------------------------
+    -- extra setup (buffer-wide cleaners) --------------------------------
+    ----------------------------------------------------------------------
+    config = function(_, opts)
+      require("flash").setup(opts)
+
+      vim.api.nvim_create_user_command("StripUrl", function()
+        -- remove bare URLs (http/https)
+        vim.cmd([[silent %s#https\?://\S\+##ge]])
+      end, { desc = "Remove all URLs from buffer" })
+
+      vim.api.nvim_create_user_command("StripLinks", function()
+        -- collapse Markdown and Norg links to plaintext label
+        vim.cmd([[silent %s#\[\([^]\]\+\)\](https\?://[^)]\+)#\1#gI]])
+        vim.cmd([[silent %s#\[\[\([^]|]\+\)|\?\([^]\]\+\)\]\]#\2#gI]])
+      end, { desc = "Remove URLs in links, keep text" })
+    end,
   },
   {
     "sphamba/smear-cursor.nvim",
@@ -799,76 +956,76 @@ return {
   --       }
   --   end,
   -- },
-  {
-    "NStefan002/screenkey.nvim",
-    lazy = false,
-    version = "*", -- or branch = "dev", to use the latest commit
-    config = function()
-      require("screenkey").setup({
-        win_opts = {
-          row = vim.o.lines - vim.o.cmdheight - 1,
-          col = vim.o.columns - 1,
-          relative = "editor",
-          anchor = "SE",
-          width = 40,
-          height = 1,
-          border = "single",
-          title = "Keyboard Input",
-          title_pos = "center",
-          style = "minimal",
-          focusable = false,
-          noautocmd = true,
-        },
-        compress_after = 3,
-        clear_after = 10,
-        disable = {
-          filetypes = {},
-          buftypes = {},
-          events = false,
-        },
-        show_leader = true,
-        group_mappings = false,
-        display_infront = {},
-        display_behind = {},
-        filter = function(keys)
-          return keys
-        end,
-        keys = {
-          ["<TAB>"] = "󰌒",
-          ["<CR>"] = "󰌑",
-          ["<ESC>"] = "Esc",
-          ["<SPACE>"] = "␣",
-          ["<BS>"] = "󰌥",
-          ["<DEL>"] = "Del",
-          ["<LEFT>"] = "",
-          ["<RIGHT>"] = "",
-          ["<UP>"] = "",
-          ["<DOWN>"] = "",
-          ["<HOME>"] = "Home",
-          ["<END>"] = "End",
-          ["<PAGEUP>"] = "PgUp",
-          ["<PAGEDOWN>"] = "PgDn",
-          ["<INSERT>"] = "Ins",
-          ["<F1>"] = "󱊫",
-          ["<F2>"] = "󱊬",
-          ["<F3>"] = "󱊭",
-          ["<F4>"] = "󱊮",
-          ["<F5>"] = "󱊯",
-          ["<F6>"] = "󱊰",
-          ["<F7>"] = "󱊱",
-          ["<F8>"] = "󱊲",
-          ["<F9>"] = "󱊳",
-          ["<F10>"] = "󱊴",
-          ["<F11>"] = "󱊵",
-          ["<F12>"] = "󱊶",
-          ["CTRL"] = "Ctrl",
-          ["ALT"] = "Alt",
-          ["SUPER"] = "󰘳",
-          ["<leader>"] = "<leader>",
-        },
-      })
-    end
-  },
+  -- {
+  --   "NStefan002/screenkey.nvim",
+  --   lazy = false,
+  --   version = "*", -- or branch = "dev", to use the latest commit
+  --   config = function()
+  --     require("screenkey").setup({
+  --       win_opts = {
+  --         row = vim.o.lines - vim.o.cmdheight - 1,
+  --         col = vim.o.columns - 1,
+  --         relative = "editor",
+  --         anchor = "SE",
+  --         width = 40,
+  --         height = 1,
+  --         border = "single",
+  --         title = "Keyboard Input",
+  --         title_pos = "center",
+  --         style = "minimal",
+  --         focusable = false,
+  --         noautocmd = true,
+  --       },
+  --       compress_after = 3,
+  --       clear_after = 10,
+  --       disable = {
+  --         filetypes = {},
+  --         buftypes = {},
+  --         events = false,
+  --       },
+  --       show_leader = true,
+  --       group_mappings = false,
+  --       display_infront = {},
+  --       display_behind = {},
+  --       filter = function(keys)
+  --         return keys
+  --       end,
+  --       keys = {
+  --         ["<TAB>"] = "󰌒",
+  --         ["<CR>"] = "󰌑",
+  --         ["<ESC>"] = "Esc",
+  --         ["<SPACE>"] = "␣",
+  --         ["<BS>"] = "󰌥",
+  --         ["<DEL>"] = "Del",
+  --         ["<LEFT>"] = "",
+  --         ["<RIGHT>"] = "",
+  --         ["<UP>"] = "",
+  --         ["<DOWN>"] = "",
+  --         ["<HOME>"] = "Home",
+  --         ["<END>"] = "End",
+  --         ["<PAGEUP>"] = "PgUp",
+  --         ["<PAGEDOWN>"] = "PgDn",
+  --         ["<INSERT>"] = "Ins",
+  --         ["<F1>"] = "󱊫",
+  --         ["<F2>"] = "󱊬",
+  --         ["<F3>"] = "󱊭",
+  --         ["<F4>"] = "󱊮",
+  --         ["<F5>"] = "󱊯",
+  --         ["<F6>"] = "󱊰",
+  --         ["<F7>"] = "󱊱",
+  --         ["<F8>"] = "󱊲",
+  --         ["<F9>"] = "󱊳",
+  --         ["<F10>"] = "󱊴",
+  --         ["<F11>"] = "󱊵",
+  --         ["<F12>"] = "󱊶",
+  --         ["CTRL"] = "Ctrl",
+  --         ["ALT"] = "Alt",
+  --         ["SUPER"] = "󰘳",
+  --         ["<leader>"] = "<leader>",
+  --       },
+  --     })
+  --   end
+  -- },
   {
     "OXY2DEV/markview.nvim",
     lazy = false,
@@ -1040,7 +1197,7 @@ return {
     opts = {
       animation = {
         enabled = true,
-        duration = 300,
+        duration = 100,
         animtion_type = "zoom",
         window_scoped = true,
       },
@@ -1312,7 +1469,7 @@ return {
     "stevearc/oil.nvim",
     lazy = false,        -- load eagerly so FileType=oil autocmds are predictable
     opts = {
-      default_file_explorer = false,  -- keep netrw available
+      default_file_explorer = true,  -- keep netrw available
       view_options = {
         show_hidden = false,      -- list files that start with “.”
       },
@@ -1323,10 +1480,20 @@ return {
         ["<BS>"]     = "actions.parent",      -- Backspace → parent dir
         ["<leader>s"] = "actions.change_sort", -- <leader>s → sort toggle
         ["g."] = "actions.toggle_hidden",
+        ["<leader><C-s>"] = false,
+        ["<leader><C-h>"] = false,
+        ["<leader><C-l>"] = false,
+        ["<C-h>"] = false,
+        ["<C-k>"] = false,
+        ["<C-l>"] = false,
+        ["<C-j>"] = false,
         -- (optional) keep `gs` mapped to sort as an alias:
         -- ["gs"] = "actions.change_sort",
       },
     },
+    config = function(_, opts)
+      require("oil").setup(opts)
+    end
   },
   -- 1. Perceptually-uniform colour maths
   {
@@ -1362,5 +1529,60 @@ return {
       -- optional: skip the standard prompt entirely and let the plugin handle it
       vim.opt.shortmess:append("A")
     end,
-  }
+  },
+  {
+    "roodolv/markdown-toggle.nvim",
+    config = function()
+      require("markdown-toggle").setup({
+        -- If true, the auto-setup for the default keymaps is enabled
+        use_default_keymaps = false,
+        -- The keymaps are valid only for these filetypes
+        filetypes = { "markdown", "markdown.mdx" },
+
+        -- The list marks table used in cycle-mode (list_table[1] is used as the default list-mark)
+        list_table = { "-", "+", "*", "=" },
+        -- Cycle the marks in user-defined table when toggling lists
+        cycle_list_table = false,
+
+        -- The checkbox marks table used in cycle-mode (box_table[1] is used as the default checked-state)
+        box_table = { "x", "~", "!", ">" },
+        -- Cycle the marks in user-defined table when toggling checkboxes
+        cycle_box_table = false,
+        -- A bullet list is toggled before turning into a checkbox (similar to how it works in Obsidian).
+        list_before_box = false,
+
+        -- The heading marks table used in `markdown-toggle.heading`
+        heading_table = { "#", "##", "###", "####", "#####" },
+
+        -- Skip blank lines and headings in Visual mode (except for `quote()`)
+        enable_blankhead_skip = true,
+        -- Insert an indented quote for new lines within quoted text
+        enable_inner_indent = false,
+        -- Toggle only unmarked lines first
+        enable_unmarked_only = true,
+        -- Automatically continue lists on new lines
+        enable_autolist = false,
+        -- Maintain checkbox state when continuing lists
+        enable_auto_samestate = false,
+        -- Dot-repeat for toggle functions in Normal mode
+        enable_dot_repeat = true,
+      })
+    end,
+  },
+  {
+    "ziontee113/icon-picker.nvim",
+    config = function()
+      require("icon-picker").setup({ disable_legacy_commands = true })
+
+      local opts = { noremap = true, silent = true }
+
+      vim.keymap.set("n", "<leader><leader>ip", "<cmd>IconPickerNormal<cr>", opts)
+      vim.keymap.set("n", "<leader><leader>iy", "<cmd>IconPickerYank<cr>", opts) --> Yank the selected icon into register
+      vim.keymap.set("i", "<C-i>", "<cmd>IconPickerInsert<cr>", opts)
+    end
+  },
+  {
+    "mbbill/undotree",
+    vim.keymap.set('n', '<leader><F5>', vim.cmd.UndotreeToggle),
+  },
 }
