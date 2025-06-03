@@ -13,9 +13,9 @@ local unpack_  = table.unpack or unpack
 --------------------------------------------------------------------- }}
 --  Internal state ---------------------------------------------------
 ---------------------------------------------------------------------
-local ns_ids   = {}        -- palette → namespace id
-local State                     -- back-pointer filled by setup()
-local _loaded_bufs = {}         -- to avoid double-loading metadata
+local ns_ids        = {}        -- palette → namespace id
+local State                         -- back-pointer filled by setup()
+local _loaded_bufs   = {}         -- avoid double-loading metadata
 
 ---------------------------------------------------------------------
 --  Small helpers ----------------------------------------------------
@@ -68,11 +68,13 @@ local function index_of(t, val)
   for i, v in ipairs(t) do if v == val then return i end end
 end
 
--- echo helper --------------------------------------------------------
+-- echo / notify helper ----------------------------------------------
 local function echo(chunks, hl)
   if type(chunks) == "string" then chunks = { { chunks, hl } } end
-  if #chunks == 0 or chunks[1][1] == "" then
-    api.nvim_echo({}, false, {})
+  local msg = ""
+  for _, c in ipairs(chunks) do msg = msg .. c[1] end
+  if vim.notify then
+    vim.notify(msg, vim.log.levels.INFO, { title = "NumHi" })
   else
     api.nvim_echo(chunks, false, {})
   end
@@ -99,8 +101,7 @@ local function meta_path(buf)
   if name == "" then return nil end
   local dir  = fn.stdpath("data") .. "/numhi"
   fn.mkdir(dir, "p")
-  -- sanitise path chars so we can store flat
-  name = name:gsub("[\\/]", "%%")
+  name = name:gsub("[\\/]", "%%")  -- sanitise
   return dir .. "/" .. name .. ".json"
 end
 
@@ -128,6 +129,10 @@ local function save_metadata(buf)
   fn.writefile({ fn.json_encode(marks) }, path)
 end
 
+local function clamp_col(buf, row, col)
+  return math.min(col, line_len(buf, row))
+end
+
 local function load_metadata(buf)
   if _loaded_bufs[buf] then return end
   _loaded_bufs[buf] = true
@@ -140,8 +145,13 @@ local function load_metadata(buf)
   for _, m in ipairs(marks) do
     local ns = ns_ids[m.pal]
     local hl = ensure_hl(m.pal, m.slot)
-    local id = api.nvim_buf_set_extmark(buf, ns, m.sr, m.sc, {
-      end_row = m.er, end_col = m.ec, hl_group = hl,
+
+    local sr, sc = m.sr, clamp_col(buf, m.sr, m.sc)
+    local er, ec = m.er, clamp_col(buf, m.er, m.ec)
+    if sc == ec then ec = ec + 1 end  -- never zero-width
+
+    local id = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
+      end_row = er, end_col = ec, hl_group = hl,
       sign_text = "✎", sign_hl_group = "NumHiNoteSign",
       virt_text = (m.tags and #m.tags > 0)
         and { { "#" .. table.concat(m.tags, " #"), "NumHiNoteVirt" } } or nil,
@@ -166,11 +176,9 @@ local function apply_tag_virt(buf, ns, id, show)
   if not note then return end
   local vt = show and tags_as_string(note.tags) or nil
 
-  -- refresh extmark with virt_text (id retained, pos unchanged)
   local pos = api.nvim_buf_get_extmark_by_id(buf, ns, id, { details = true })
   if not pos or not pos[1] then return end
 
-  -- Only pass *valid* extmark keys to avoid "invalid key: user_data"
   api.nvim_buf_set_extmark(
     buf, ns, pos[1], pos[2],
     {
@@ -208,7 +216,6 @@ function C.setup(top)
   end
   ensure_note_hl()
 
-  -- load persisted metadata on BufReadPost
   api.nvim_create_autocmd("BufReadPost", {
     callback = function(ev) vim.schedule(function() load_metadata(ev.buf) end) end,
   })
@@ -250,9 +257,9 @@ end
 --  Highlight action -------------------------------------------------
 ---------------------------------------------------------------------
 -- mark table layout:
---   { buf, id, slot, sr, sc, er, ec }
-local function store_mark(buf, id, slot, sr, sc, er, ec)
-  return { buf, id, slot, sr, sc, er, ec }
+--   { buf, id, slot, sr, sc, er, ec, note, tags }
+local function store_mark(buf, id, slot, sr, sc, er, ec, note, tags)
+  return { buf, id, slot, sr, sc, er, ec, note, tags }
 end
 
 function C.highlight(slot)
@@ -311,7 +318,7 @@ function C.collect_digits()
     local pal = State.active_palette
     local txt = (#digits > 0) and digits or "_"
     local hl  = (#digits > 0) and ensure_hl(pal, tonumber(digits)) or "Comment"
-    echo(string.format("NumHi %s ◈ slot: %s (1-99)", pal, txt), hl)
+    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR> to confirm, <BS> to undo", pal, txt), hl)
   end
   prompt()
   while true do
@@ -321,11 +328,17 @@ function C.collect_digits()
     if ch:match("%d") and #digits < 2 then
       digits = digits .. ch
       prompt()
+    elseif ch == "\b" or ch == "\127" then  -- backspace / delete
+      digits = digits:sub(1, -2)
+      prompt()
     elseif ch == "\r" then
       local num = digits
       api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
       vim.schedule(function() C.highlight(num) end)
       echo("")
+      return
+    else
+      echo("")  -- cancel
       return
     end
   end
@@ -339,11 +352,23 @@ function C.erase_under_cursor()
   local ns   = ns_ids[pal]
   local l, c = unpack(api.nvim_win_get_cursor(0))
   local ids  = api.nvim_buf_get_extmarks(
-    0, ns, { l - 1, c }, { l - 1, c + 1 }, { overlap = true })
+    0, ns, { l - 1, c }, { l - 1, c + 1 }, { overlap = true, details = true })
+  if #ids == 0 then return end
+
+  local marks = {}
   for _, m in ipairs(ids) do
-    api.nvim_buf_del_extmark(0, ns, m[1])
-    note_store(0)[m[1]] = nil
+    local id, sr, sc, det = m[1], m[2], m[3], m[4]
+    local note_tbl = note_store(0)[id]
+    table.insert(marks, store_mark(0, id,
+      tonumber(det.hl_group:match("_(%d+)$")),
+      sr, sc, det.end_row, det.end_col,
+      note_tbl and note_tbl.note, note_tbl and note_tbl.tags))
+
+    api.nvim_buf_del_extmark(0, ns, id)
+    -- keep note in memory for undo/redo
   end
+  table.insert(State.history, { pal = pal, slot = nil, marks = marks })
+  State.redo_stack = {}
   save_metadata(0)
 end
 
@@ -351,27 +376,32 @@ end
 --  Undo / redo ------------------------------------------------------
 ---------------------------------------------------------------------
 local function recreate_mark(mark, pal)
-  local buf, _, slot, sr, sc, er, ec = unpack(mark)
+  local buf, _, slot, sr, sc, er, ec, note, tags = unpack(mark)
   local ns   = ns_ids[pal]
   local hl   = ensure_hl(pal, slot)
   local id   = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
     end_row = er, end_col = ec, hl_group = hl,
+    sign_text = (note and "✎" or nil), sign_hl_group = "NumHiNoteSign",
+    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), "NumHiNoteVirt" } } or nil,
+    virt_text_pos = "eol",
   })
-  -- transfer note (if any) onto new id
-  local old_note = note_store(buf)[mark[2]]
-  if old_note then
-    set_note(buf, id, old_note.note, old_note.tags)
-    apply_tag_virt(buf, ns, id, State.show_tags)
-  end
-  mark[2] = id  -- update stored id
+  if note then set_note(buf, id, note, tags) end
+  mark[2] = id  -- update stored id for possible further undo/redo
 end
 
 function C.undo()
   local entry = table.remove(State.history)
   if not entry then return end
   for _, m in ipairs(entry.marks) do
-    api.nvim_buf_del_extmark(m[1], ns_ids[entry.pal], m[2])
-    note_store(m[1])[m[2]] = nil
+    local buf, id = m[1], m[2]
+    local pal = entry.pal or State.active_palette
+    local ns  = ns_ids[pal]
+    -- cache note before deleting
+    local note_tbl = note_store(buf)[id]
+    if note_tbl then
+      m[8], m[9] = note_tbl.note, note_tbl.tags
+    end
+    api.nvim_buf_del_extmark(buf, ns, id)
   end
   table.insert(State.redo_stack, entry)
   save_metadata(0)
@@ -450,13 +480,12 @@ function C.edit_note()
       local slot     = tonumber(m[4].hl_group:match("_(%d+)$"))
       local note_tbl = get_note(0, id) or { note = "", tags = {} }
 
-      -- Re-use a buffer if it already exists (prevents E95)
       local bufname = ("NumHiNote:%d"):format(id)
       local buf     = fn.bufnr(bufname)
       if buf == -1 then
         buf = api.nvim_create_buf(false, true)
         api.nvim_buf_set_name(buf, bufname)
-        api.nvim_buf_set_option(buf, 'buftype', 'acwrite') -- allow :w
+        api.nvim_buf_set_option(buf, 'buftype', 'acwrite')
         api.nvim_buf_set_option(buf, 'filetype', 'markdown')
         api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
         if note_tbl.note ~= "" then
@@ -464,7 +493,6 @@ function C.edit_note()
         end
       end
 
-      -- floating window --------------------------------------------------
       local width  = math.floor(vim.o.columns * 0.5)
       local height = math.max(3, math.floor(vim.o.lines * 0.3))
       local anchor = (l + height + 2 > vim.o.lines) and 'SW' or 'NW'
@@ -479,7 +507,6 @@ function C.edit_note()
         anchor = anchor,
       })
 
-      -- save helper ------------------------------------------------------
       local function save()
         local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
         local content = table.concat(lines, "\n")
@@ -493,7 +520,6 @@ function C.edit_note()
         save_metadata(0)
       end
 
-      -- autocmds ---------------------------------------------------------
       api.nvim_create_autocmd({ 'BufWriteCmd' }, {
         buffer = buf,
         nested = true,
@@ -510,12 +536,13 @@ function C.edit_note()
         end,
       })
 
-      -- convenience mapping to quit
-      api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<CR>", { silent = true })
+      -- 'q' to write & quit
+      api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>write | close<CR>", { silent = true })
+
       return
     end
   end
-  print("No NumHi highlight under cursor")
+  echo("No NumHi highlight under cursor")
 end
 
 ---------------------------------------------------------------------

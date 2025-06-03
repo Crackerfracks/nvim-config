@@ -9,7 +9,7 @@ local core
 -----------------------------------------------------------------------
 local default_opts = {
   palettes     = { "VID", "PAS", "EAR", "MET", "CYB" },
-  key_leader   = "<leader><leader>",
+  key_leader   = "<leader><leader>",  -- root; NumHi adds an extra 'n'
   statusline   = true,
   history_max  = 500,
   hover_delay  = 400,
@@ -52,25 +52,25 @@ end
 --  Keymaps -----------------------------------------------------------
 -----------------------------------------------------------------------
 function M.create_keymaps()
-  local leader = M.state.opts.key_leader
+  local leader_root = M.state.opts.key_leader .. "n"  -- << all NumHi under <leader><leader>n
   local map = function(lhs, rhs, desc, mode)
     vim.keymap.set(mode or { "n", "v" }, lhs, rhs, { silent = true, desc = desc })
   end
 
   -- Highlight / erase
-  map(leader .. "<CR>", function() core.collect_digits() end,    "NumHi: highlight with slot")
-  map(leader .. "0<CR>", M.erase_under_cursor,                  "NumHi: erase mark under cursor")
+  map(leader_root .. "<CR>",          function() core.collect_digits() end, "NumHi: highlight with slot")
+  map(leader_root .. "0<CR>",         M.erase_under_cursor,              "NumHi: erase mark under cursor")
 
   -- Undo / redo
-  map(leader .. "u",     M.undo,                                "NumHi: undo")
-  map(leader .. "<C-r>", M.redo,                                "NumHi: redo")
+  map(leader_root .. "u",             M.undo,                            "NumHi: undo")
+  map(leader_root .. "<C-r>",         M.redo,                            "NumHi: redo")
 
-  -- Note namespace ---------------------------------------------------
-  map(leader .. "n",  function() core.edit_note() end,           "NumHi: create / edit note")
-  map(leader .. "nt", function() core.toggle_tag_display() end,  "NumHi: toggle tag display")
+  -- Notes & tags
+  map(leader_root .. "nn",            function() core.edit_note() end,   "NumHi: create / edit note")
+  map(leader_root .. "nt",            function() core.toggle_tag_display() end, "NumHi: toggle tag display")
 
   -- Palette cycle
-  vim.keymap.set("n", leader .. "p", function() M.cycle_palette(1) end,
+  vim.keymap.set("n", leader_root .. "p", function() M.cycle_palette(1) end,
                  { silent = true, desc = "NumHi: next palette" })
 end
 
@@ -79,10 +79,8 @@ end
 -----------------------------------------------------------------------
 function M.status_component()
   local pal = M.state.active_palette
-  -- swatch block (slot 1 colour)
   local base_hl = core.ensure_hl(pal, 1)
   local swatch = string.format("%%#%s#▉%%*", base_hl)
-  -- Build digit indicators
   local parts = {}
   for n = 1, 10 do
     local hl = core.ensure_hl(pal, n)
@@ -124,8 +122,6 @@ function M.attach_statusline()
   end
 
   if attach_lualine() then return end
-
-  -- fallback: plain statusline
   vim.o.statusline = "%{%v:lua.require'numhi'.status_component()%}" .. vim.o.statusline
 end
 

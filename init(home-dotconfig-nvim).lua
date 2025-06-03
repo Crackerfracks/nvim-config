@@ -238,7 +238,7 @@ vim.keymap.set("n", "<leader><leader>d", "\"_d", { desc = "Delete into void regi
 vim.keymap.set("v", "<leader><leader>d", "\"_d", { desc = "Delete selection into void register" })
 
 -- Format buffer
-vim.keymap.set("n", "<leader>f", function()
+vim.keymap.set("n", "<leader><leader><leader>f", function()
   vim.lsp.buf.format()
 end, { desc = "Format buffer via LSP" })
 
@@ -1040,40 +1040,99 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 -----------------------------------------------------------------------
--- 🪞  Auto-mirror Kickstart files to ~/Documents/NVIM_CONFIG_MIRRORS
+-- 🪞  Auto‑mirror Kickstart files → ~/Documents/NVIM_CONFIG_MIRRORS
+--      + build a single Markdown “bundle” of the entire config
 -----------------------------------------------------------------------
 do
+  ------------------------------------------------------------
+  -- 1.  Path helpers
+  ------------------------------------------------------------
   local mirror_root = vim.fn.expand("~/Documents/NVIM_CONFIG_MIRRORS")
-  vim.fn.mkdir(mirror_root, "p") -- create tree if missing  :contentReference[oaicite:1]{index=1}
+  vim.fn.mkdir(mirror_root, "p")            -- ensure tree exists
 
-  -- map <source-abs-path> → <dest-abs-path>
+  local BUNDLE = mirror_root .. "/user_neovim_config_complete_collection_w-filepaths.md"
+
+  ------------------------------------------------------------
+  -- 2.  Map  <source‑abs‑path> → <dest‑abs‑path>  (one‑way)
+  ------------------------------------------------------------
   local mirrors = {
     [vim.fn.expand(vim.fn.stdpath("config") .. "/init.lua")] =
       mirror_root .. "/init(home-dotconfig-nvim).lua",
-    [vim.fn.expand(vim.fn.stdpath("config")
-      .. "/lua/custom/plugins/init.lua")] =
+
+    [vim.fn.expand(vim.fn.stdpath("config") .. "/lua/custom/plugins/init.lua")] =
       mirror_root .. "/lua/custom/plugins/init(home-dotconfig-nvim-lua-custom-plugins).lua",
+
     [vim.fn.expand(vim.fn.stdpath("config") .. "/lua/numhi/core.lua")] =
       mirror_root .. "/lua/numhi/core(home-dotconfig-nvim-lua-numhi).lua",
+
     [vim.fn.expand(vim.fn.stdpath("config") .. "/lua/numhi/init.lua")] =
       mirror_root .. "/lua/numhi/init(home-dotconfig-nvim-lua-numhi).lua",
+
     [vim.fn.expand(vim.fn.stdpath("config") .. "/lua/numhi/palettes.lua")] =
       mirror_root .. "/lua/numhi/palettes(home-dotconfig-nvim-lua-numhi).lua",
+
     [vim.fn.expand(vim.fn.stdpath("config") .. "/lua/numhi/ui.lua")] =
       mirror_root .. "/lua/numhi/ui(home-dotconfig-nvim-lua-numhi).lua",
   }
 
+  ------------------------------------------------------------
+  -- 3.  Utility: read a file & strip fully‑commented lines
+  ------------------------------------------------------------
+  local function read_code_without_full_comments(path)
+    local cleaned, inside_block = {}, false
+    for line in io.lines(path) do
+      local ltrim = line:match("^%s*(.*)$") or ""
+      -- handle long‑form block comments --[[ ... ]]
+      if ltrim:find("^%-%-%[%[") then
+        inside_block = true
+      elseif inside_block and ltrim:find("%]%]") then
+        inside_block = false
+      elseif not inside_block and not ltrim:find("^%-%-") then
+        table.insert(cleaned, line)
+      end
+    end
+    return cleaned
+  end
+
+  ------------------------------------------------------------
+  -- 4.  Build / overwrite the bundle‑markdown
+  ------------------------------------------------------------
+  local function rebuild_markdown_bundle()
+    local md_parts = {}
+    for src, _ in pairs(mirrors) do
+      if vim.fn.filereadable(src) == 1 then
+        table.insert(md_parts, ("```lua %s"):format(src))
+        vim.list_extend(md_parts, read_code_without_full_comments(src))
+        table.insert(md_parts, "```")
+        table.insert(md_parts, "")          -- blank line between fences
+      end
+    end
+    local fh = assert(io.open(BUNDLE, "w"))
+    fh:write(table.concat(md_parts, "\n"))
+    fh:close()
+  end
+
+  ------------------------------------------------------------
+  -- 5.  Autocmds for every mirrored file
+  ------------------------------------------------------------
   for src, dst in pairs(mirrors) do
     vim.api.nvim_create_autocmd("BufWritePost", {
       pattern = src,
       callback = function()
+        -- 5.1 one‑way copy of the single file
         local dst_dir = vim.fn.fnamemodify(dst, ":h")
         vim.fn.mkdir(dst_dir, "p")
-        vim.fn.system({ "cp", "--", src, dst })            -- one-way copy :contentReference[oaicite:2]{index=2}
+        vim.fn.system({ "cp", "--", src, dst })
+
+        -- 5.2 rebuild the aggregate Markdown bundle
+        rebuild_markdown_bundle()
       end,
-      desc = "Mirror " .. vim.fn.fnamemodify(src, ":t") .. " to Documents",
+      desc = "Mirror " .. vim.fn.fnamemodify(src, ":t") .. " + rebuild bundle",
     })
   end
+
+  -- 6.  Ensure the bundle exists on startup (optional, cheap)
+  rebuild_markdown_bundle()
 end
 -----------------------------------------------------------------------
 
