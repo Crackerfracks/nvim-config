@@ -120,7 +120,7 @@ local function save_metadata(buf)
         sr       = sr, sc = sc,
         er       = details.end_row, ec = details.end_col,
         id       = id,
-        label    = (State.labels[pal] or {})[tonumber(details.hl_group:match("_(%d+)$"))],
+        label    = ((State.labels[buf] or {})[pal] or {})[tonumber(details.hl_group:match("_(%d+)$"))],
         note     = (note_store(buf)[id] or {}).note,
         tags     = (note_store(buf)[id] or {}).tags,
       }
@@ -160,8 +160,9 @@ local function load_metadata(buf)
       virt_text_pos = "eol",
     })
     if m.note then set_note(buf, id, m.note, m.tags or {}) end
-    State.labels[m.pal] = State.labels[m.pal] or {}
-    if m.label then State.labels[m.pal][m.slot] = m.label end
+    State.labels[buf] = State.labels[buf] or {}
+    State.labels[buf][m.pal] = State.labels[buf][m.pal] or {}
+    if m.label then State.labels[buf][m.pal][m.slot] = m.label end
   end
 end
 
@@ -249,18 +250,19 @@ end
 ---------------------------------------------------------------------
 --  Labels -----------------------------------------------------------
 ---------------------------------------------------------------------
-local function get_label(pal, slot)
-  State.labels[pal] = State.labels[pal] or {}
-  local label       = State.labels[pal][slot]
+local function get_label(buf, pal, slot)
+  State.labels[buf] = State.labels[buf] or {}
+  State.labels[buf][pal] = State.labels[buf][pal] or {}
+  local label       = State.labels[buf][pal][slot]
   if not label then
     vim.ui.input(
       { prompt = ("NumHi %s-%d label (empty = none): "):format(pal, slot) },
       function(input)
-        if input and input ~= "" then State.labels[pal][slot] = input end
+        if input and input ~= "" then State.labels[buf][pal][slot] = input end
       end
     )
   end
-  return State.labels[pal][slot]
+  return State.labels[buf][pal][slot]
 end
 
 ---------------------------------------------------------------------
@@ -310,7 +312,7 @@ function C.highlight(slot)
   )
   table.insert(marks, store_mark(0, id, slot, start_row, start_col, end_row, end_col))
 
-  get_label(pal, slot)
+  get_label(0, pal, slot)
 
   table.insert(State.history, { pal = pal, slot = slot, marks = marks })
   State.redo_stack = {}
@@ -449,6 +451,7 @@ end
 --  Hover label ------------------------------------------------------
 ---------------------------------------------------------------------
 function C.show_label_under_cursor()
+  local buf = api.nvim_get_current_buf()
   local l, c = unpack(api.nvim_win_get_cursor(0))
   for _, pal in ipairs(State.opts.palettes) do
     local marks = api.nvim_buf_get_extmarks(
@@ -457,7 +460,8 @@ function C.show_label_under_cursor()
     if #marks > 0 then
       local id     = marks[1][1]
       local slot   = tonumber(marks[1][4].hl_group:match("_(%d+)$"))
-      local label  = State.labels[pal] and State.labels[pal][slot] or ""
+      local lbls = State.labels[buf] and State.labels[buf][pal] or {}
+      local label  = lbls and lbls[slot] or ""
       local note   = get_note(0, id)
       require('numhi.ui').tooltip(pal, slot, label, note and note.note or nil, note and note.tags or nil)
       return
@@ -547,7 +551,14 @@ function C.edit_note()
       })
 
       -- 'q' to write & quit
-      api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>write | close<CR>", { silent = true })
+      api.nvim_buf_set_keymap(buf, "n", "q", "", {
+        callback = function()
+          save()
+          if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
+        end,
+        silent = true,
+        desc = "NumHi: save note and close",
+      })
 
       return
     end
