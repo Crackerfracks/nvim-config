@@ -17,6 +17,7 @@ local unpack_  = table.unpack or unpack
 local ns_ids        = {}        -- palette → namespace id
 local State                         -- back-pointer filled by setup()
 local _loaded_bufs   = {}         -- avoid double-loading metadata
+local SIGN_PRIORITY = 1
 
 ---------------------------------------------------------------------
 --  Small helpers ----------------------------------------------------
@@ -151,13 +152,14 @@ local function load_metadata(buf)
     local er, ec = m.er, clamp_col(buf, m.er, m.ec)
     if sc == ec then ec = ec + 1 end  -- never zero-width
 
-    local vt = nil
-    if State.show_tags and m.tags and #m.tags > 0 then
-      vt = { { "#" .. table.concat(m.tags, " #"), hl } }
-    end
+    local vt = (State.show_tags and m.tags and #m.tags > 0)
+                and { { "#" .. table.concat(m.tags, " #"), hl } } or nil
+    local show_icon = State.show_tags and (m.note or (m.tags and #m.tags > 0))
     local id = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
       end_row = er, end_col = ec, hl_group = hl,
-      sign_text = "✎", sign_hl_group = hl,
+      sign_text = show_icon and "✎" or nil,
+      sign_hl_group = hl,
+      priority = SIGN_PRIORITY,
       virt_text = vt,
       virt_text_pos = "eol",
     })
@@ -194,8 +196,9 @@ local function apply_tag_virt(buf, ns, id, show)
       end_row  = pos[3].end_row,
       end_col  = pos[3].end_col,
       hl_group = pos[3].hl_group,
-      sign_text      = "✎",
+      sign_text      = show and "✎" or nil,
       sign_hl_group  = hl,
+      priority       = SIGN_PRIORITY,
       virt_text      = vt and { { vt, hl } } or nil,
       virt_text_pos  = "eol",
     }
@@ -396,7 +399,9 @@ local function recreate_mark(mark, pal)
   end
   local id   = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
     end_row = er, end_col = ec, hl_group = hl,
-    sign_text = (note and "✎" or nil), sign_hl_group = hl,
+    sign_text = (State.show_tags and (note or (tags and #tags > 0)) and "✎" or nil),
+    sign_hl_group = hl,
+    priority = SIGN_PRIORITY,
     virt_text = vt,
     virt_text_pos = "eol",
   })
@@ -485,7 +490,7 @@ function C.edit_note()
   for _, pal in ipairs(State.opts.palettes) do
     local ns     = ns_ids[pal]
     local marks  = api.nvim_buf_get_extmarks(
-      0, ns, { l - 1, c }, { l - 1, c }, { details = true, overlap = true })
+      0, ns, { l - 1, c }, { l - 1, c + 1 }, { details = true, overlap = true })
     if #marks > 0 then
       local m        = marks[1]
       local id       = m[1]
@@ -549,8 +554,9 @@ function C.edit_note()
         end,
       })
 
-      -- 'q' to write & quit
+      -- 'q' or 'Q' to write & quit
       api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>write | close<CR>", { silent = true })
+      api.nvim_buf_set_keymap(buf, "n", "Q", "<cmd>write | close<CR>", { silent = true })
 
       return
     end
