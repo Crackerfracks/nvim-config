@@ -151,10 +151,12 @@ local function load_metadata(buf)
     if sc == ec then ec = ec + 1 end  -- never zero-width
 
     local id = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
-      end_row = er, end_col = ec, hl_group = hl,
-      sign_text = "✎", sign_hl_group = "NumHiNoteSign",
-      virt_text = (m.tags and #m.tags > 0)
-        and { { "#" .. table.concat(m.tags, " #"), "NumHiNoteVirt" } } or nil,
+      end_row = er,
+      end_col = ec,
+      hl_group = hl,
+      sign_text = "✎",
+      sign_hl_group = hl,
+      virt_text = (m.tags and #m.tags > 0) and { { "#" .. table.concat(m.tags, " #"), hl } } or nil,
       virt_text_pos = "eol",
     })
     if m.note then set_note(buf, id, m.note, m.tags or {}) end
@@ -180,16 +182,19 @@ local function apply_tag_virt(buf, ns, id, show)
   if not pos or not pos[1] then return end
 
   api.nvim_buf_set_extmark(
-    buf, ns, pos[1], pos[2],
+    buf,
+    ns,
+    pos[1],
+    pos[2],
     {
-      id       = id,
-      end_row  = pos[3].end_row,
-      end_col  = pos[3].end_col,
+      id = id,
+      end_row = pos[3].end_row,
+      end_col = pos[3].end_col,
       hl_group = pos[3].hl_group,
-      sign_text      = "✎",
-      sign_hl_group  = "NumHiNoteSign",
-      virt_text      = vt and { { vt, "NumHiNoteVirt" } } or nil,
-      virt_text_pos  = "eol",
+      sign_text = "✎",
+      sign_hl_group = pos[3].hl_group,
+      virt_text = vt and { { vt, pos[3].hl_group } } or nil,
+      virt_text_pos = "eol",
     }
   )
 end
@@ -218,6 +223,11 @@ function C.setup(top)
 
   api.nvim_create_autocmd("BufReadPost", {
     callback = function(ev) vim.schedule(function() load_metadata(ev.buf) end) end,
+  })
+  api.nvim_create_autocmd("BufWritePost", {
+    callback = function(ev)
+      if api.nvim_buf_get_option(ev.buf, 'buftype') == '' then save_metadata(ev.buf) end
+    end,
   })
 end
 
@@ -317,8 +327,8 @@ function C.collect_digits()
   local function prompt()
     local pal = State.active_palette
     local txt = (#digits > 0) and digits or "_"
-    local hl  = (#digits > 0) and ensure_hl(pal, tonumber(digits)) or "Comment"
-    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR> to confirm, <BS> to undo", pal, txt), hl)
+    local hl = (#digits > 0) and ensure_hl(pal, tonumber(digits)) or "Comment"
+    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR> confirm  <BS> clear  <ESC> cancel", pal, txt), hl)
   end
   prompt()
   while true do
@@ -328,9 +338,12 @@ function C.collect_digits()
     if ch:match("%d") and #digits < 2 then
       digits = digits .. ch
       prompt()
-    elseif ch == "\b" or ch == "\127" then  -- backspace / delete
-      digits = digits:sub(1, -2)
+    elseif ch == "\b" or ch == "\127" then -- clear
+      digits = ""
       prompt()
+    elseif ch == string.char(27) then -- escape
+      echo("")
+      return
     elseif ch == "\r" then
       local num = digits
       api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
@@ -381,8 +394,8 @@ local function recreate_mark(mark, pal)
   local hl   = ensure_hl(pal, slot)
   local id   = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
     end_row = er, end_col = ec, hl_group = hl,
-    sign_text = (note and "✎" or nil), sign_hl_group = "NumHiNoteSign",
-    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), "NumHiNoteVirt" } } or nil,
+    sign_text = (note and "✎" or nil), sign_hl_group = hl,
+    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), hl } } or nil,
     virt_text_pos = "eol",
   })
   if note then set_note(buf, id, note, tags) end
@@ -446,11 +459,7 @@ function C.show_label_under_cursor()
       local slot   = tonumber(marks[1][4].hl_group:match("_(%d+)$"))
       local label  = State.labels[pal] and State.labels[pal][slot] or ""
       local note   = get_note(0, id)
-      local hl     = ensure_hl(pal, slot)
-      local msg    = ("NumHi  %s-%d"):format(pal, slot)
-      if label and label ~= "" then msg = msg .. ("  →  %s"):format(label) end
-      if note  then msg = msg .. "  ✎" end
-      echo(msg, hl)
+      require('numhi.ui').tooltip(pal, slot, label, note and note.note or nil, note and note.tags or nil)
       return
     end
   end
@@ -460,6 +469,7 @@ end
 --  Toggle tag display ----------------------------------------------
 ---------------------------------------------------------------------
 function C.toggle_tag_display()
+  load_metadata(0)
   State.show_tags = not State.show_tags
   refresh_all_tag_vt(0)
 end
