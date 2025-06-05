@@ -1,3 +1,34 @@
+```lua /home/svaughn/.config/nvim/lua/numhi/ui.lua
+local api = vim.api
+local M   = {}
+
+function M.tooltip(pal, slot, label, note)
+  if vim.fn.exists("w:numhi_tooltip") == 1 then
+    api.nvim_win_close(vim.g.numhi_tooltip, true)
+  end
+  local buf   = api.nvim_create_buf(false, true)
+  local lines = { ("%s-%d  %s"):format(pal, slot, label or ""),
+                  (note and "✎ " .. note:gsub("\n.*", " …") or "") }
+  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  local win = api.nvim_open_win(buf, false, {
+    relative = "cursor",
+    row      = 1,
+    col      = 0,
+    width    = math.max(14, #lines[1]),
+    height   = #lines,
+    style    = "minimal",
+    border   = "single",
+  })
+  vim.g.numhi_tooltip = win
+  vim.defer_fn(function()
+    if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
+  end, 4000)
+end
+
+return M
+
+```
+
 ```lua /home/svaughn/.config/nvim/lua/numhi/core.lua
 local C        = {}
 local palettes = require("numhi.palettes").base
@@ -491,57 +522,6 @@ C.ensure_hl = ensure_hl
 function C.ns_for(pal) return ns_ids[pal] end
 
 return C
-
-```
-
-```lua /home/svaughn/.config/nvim/lua/numhi/ui.lua
-local api = vim.api
-local M   = {}
-
-function M.tooltip(pal, slot, label, note)
-  if vim.fn.exists("w:numhi_tooltip") == 1 then
-    api.nvim_win_close(vim.g.numhi_tooltip, true)
-  end
-  local buf   = api.nvim_create_buf(false, true)
-  local lines = { ("%s-%d  %s"):format(pal, slot, label or ""),
-                  (note and "✎ " .. note:gsub("\n.*", " …") or "") }
-  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  local win = api.nvim_open_win(buf, false, {
-    relative = "cursor",
-    row      = 1,
-    col      = 0,
-    width    = math.max(14, #lines[1]),
-    height   = #lines,
-    style    = "minimal",
-    border   = "single",
-  })
-  vim.g.numhi_tooltip = win
-  vim.defer_fn(function()
-    if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
-  end, 4000)
-end
-
-return M
-
-```
-
-```lua /home/svaughn/.config/nvim/lua/numhi/palettes.lua
-local P = {}
-
-P.base = {
-  VID = { "ff5555","f1fa8c","50fa7b","8be9fd","bd93f9",
-          "ff79c6","ffb86c","8affff","caffbf","ffaec9"},
-  PAS = { "f8b5c0","f9d7a1","f9f1a7","b8e8d0","a8d9f0",
-          "d0c4f7","f5bde6","c9e4de","fcd5ce","e8c8ff"},
-  EAR = { "80664d","a67c52","73624b","4d6658","6d8a6d",
-          "8c7156","665746","997950","595e4a","726256"},
-  MET = { "d4af37","b87333","c0c0c0","8c7853","b08d57",
-          "aaa9ad","e6be8a","9fa2a6","cd7f32","a97142"},
-  CYB = { "ff2079","00e5ff","9dff00","ff6f00","ff36ff",
-          "00f6ff","b4ff00","ff8c00","ff40ff","00ffff"},
-}
-
-return P
 
 ```
 
@@ -1078,6 +1058,11 @@ return {
 
     opts = {
       labels = "abcdefghijklmnopqrstuvwxyz",
+      mode = {
+        search = {
+          enabled = true,
+        },
+      },
       search = {
         multi_window = true,
         forward = true,
@@ -1154,8 +1139,8 @@ return {
           require("flash").jump({
             search  = { mode = "search", max_length = 0 },
             label   = { after = { 0, 0 } },
-            pattern = [[\S$]],
-          })
+            pattern = [[\ze$]],
+          }) 
         end,
         desc = "Jump to line end (exclusive)" },
 
@@ -1855,6 +1840,120 @@ return {
 }
 ```
 
+```lua /home/svaughn/.config/nvim/lua/numhi/init.lua
+local M = {}
+local core
+local default_opts = {
+  palettes     = { "VID", "PAS", "EAR", "MET", "CYB" },
+  key_leader   = "<leader><leader>",  -- root; NumHi adds an extra 'n'
+  statusline   = true,
+  history_max  = 500,
+  hover_delay  = 400,
+}
+
+M.state = {
+  active_palette = "VID",
+  history        = {},
+  redo_stack     = {},
+  labels         = {},
+  notes          = {},
+  show_tags      = true,
+  opts           = {},
+}
+
+function M.setup(opts)
+  opts = vim.tbl_deep_extend("force", default_opts, opts or {})
+  M.state.opts = opts
+  core = require("numhi.core")
+  core.setup(M)
+
+  if opts.statusline then M.attach_statusline() end
+  M.create_keymaps()
+  M.create_hover_autocmd()
+end
+
+for _, f in ipairs { "highlight","erase_under_cursor","undo","redo",
+                     "cycle_palette","toggle_tag_display","collect_digits",
+                     "edit_note","show_label_under_cursor" } do
+  M[f] = function(...) return core[f](...) end
+end
+
+function M.create_keymaps()
+  local leader_root = M.state.opts.key_leader .. "n"  -- << all NumHi under <leader><leader>n
+  local map = function(lhs, rhs, desc, mode)
+    vim.keymap.set(mode or { "n", "v" }, lhs, rhs, { silent = true, desc = desc })
+  end
+
+  map(leader_root .. "<CR>",          function() core.collect_digits() end, "NumHi: highlight with slot")
+  map(leader_root .. "0<CR>",         M.erase_under_cursor,              "NumHi: erase mark under cursor")
+
+  map(leader_root .. "u",             M.undo,                            "NumHi: undo")
+  map(leader_root .. "<C-r>",         M.redo,                            "NumHi: redo")
+
+  map(leader_root .. "nn",            function() core.edit_note() end,   "NumHi: create / edit note")
+  map(leader_root .. "nt",            function() core.toggle_tag_display() end, "NumHi: toggle tag display")
+
+  vim.keymap.set("n", leader_root .. "p", function() M.cycle_palette(1) end,
+                 { silent = true, desc = "NumHi: next palette" })
+end
+
+function M.status_component()
+  local pal = M.state.active_palette
+  local base_hl = core.ensure_hl(pal, 1)
+  local swatch = string.format("%%#%s#▉%%*", base_hl)
+  local parts = {}
+  for n = 1, 10 do
+    local hl = core.ensure_hl(pal, n)
+    parts[#parts + 1] = string.format("%%#%s#%s%%*", hl, (n % 10 == 0) and "0" or tostring(n))
+  end
+  return string.format("[%s %s %s]%%*", swatch, pal, table.concat(parts, ""))
+end
+
+local function attach_to_mini()
+  local ok, mini = pcall(require, "mini.statusline")
+  if not ok or mini.__numhi_patched then return ok end
+  mini.__numhi_patched = true
+  local orig = mini.section_location
+  mini.section_location = function()
+    return M.status_component() .. (orig and orig() or "")
+  end
+  return true
+end
+
+function M.attach_statusline()
+  if attach_to_mini() then return end
+
+  local function attach_lualine()
+    local ok, lualine = pcall(require, "lualine")
+    if not ok or lualine.__numhi_patched then return ok end
+    lualine.__numhi_patched = true
+    local comp = function() return M.status_component() end
+    vim.schedule(function()
+      local cfg = lualine.get_config and lualine.get_config() or {}
+      cfg.sections = cfg.sections or {}
+      cfg.sections.lualine_c = cfg.sections.lualine_c or {}
+      table.insert(cfg.sections.lualine_c, 1, comp)
+      lualine.setup(cfg)
+    end)
+    return true
+  end
+
+  if attach_lualine() then return end
+  vim.o.statusline = "%{%v:lua.require'numhi'.status_component()%}" .. vim.o.statusline
+end
+
+function M.create_hover_autocmd()
+  vim.api.nvim_create_autocmd("CursorHold", {
+    desc     = "NumHi: show label under cursor",
+    callback = core.show_label_under_cursor,
+  })
+  vim.opt.updatetime = math.min(vim.opt.updatetime:get(), M.state.opts.hover_delay)
+end
+
+return M
+
+```
+
 ```lua /home/svaughn/.config/nvim/init.lua
 
 
@@ -2527,116 +2626,22 @@ end
 
 ```
 
-```lua /home/svaughn/.config/nvim/lua/numhi/init.lua
-local M = {}
-local core
-local default_opts = {
-  palettes     = { "VID", "PAS", "EAR", "MET", "CYB" },
-  key_leader   = "<leader><leader>",  -- root; NumHi adds an extra 'n'
-  statusline   = true,
-  history_max  = 500,
-  hover_delay  = 400,
+```lua /home/svaughn/.config/nvim/lua/numhi/palettes.lua
+local P = {}
+
+P.base = {
+  VID = { "ff5555","f1fa8c","50fa7b","8be9fd","bd93f9",
+          "ff79c6","ffb86c","8affff","caffbf","ffaec9"},
+  PAS = { "f8b5c0","f9d7a1","f9f1a7","b8e8d0","a8d9f0",
+          "d0c4f7","f5bde6","c9e4de","fcd5ce","e8c8ff"},
+  EAR = { "80664d","a67c52","73624b","4d6658","6d8a6d",
+          "8c7156","665746","997950","595e4a","726256"},
+  MET = { "d4af37","b87333","c0c0c0","8c7853","b08d57",
+          "aaa9ad","e6be8a","9fa2a6","cd7f32","a97142"},
+  CYB = { "ff2079","00e5ff","9dff00","ff6f00","ff36ff",
+          "00f6ff","b4ff00","ff8c00","ff40ff","00ffff"},
 }
 
-M.state = {
-  active_palette = "VID",
-  history        = {},
-  redo_stack     = {},
-  labels         = {},
-  notes          = {},
-  show_tags      = true,
-  opts           = {},
-}
-
-function M.setup(opts)
-  opts = vim.tbl_deep_extend("force", default_opts, opts or {})
-  M.state.opts = opts
-  core = require("numhi.core")
-  core.setup(M)
-
-  if opts.statusline then M.attach_statusline() end
-  M.create_keymaps()
-  M.create_hover_autocmd()
-end
-
-for _, f in ipairs { "highlight","erase_under_cursor","undo","redo",
-                     "cycle_palette","toggle_tag_display","collect_digits",
-                     "edit_note","show_label_under_cursor" } do
-  M[f] = function(...) return core[f](...) end
-end
-
-function M.create_keymaps()
-  local leader_root = M.state.opts.key_leader .. "n"  -- << all NumHi under <leader><leader>n
-  local map = function(lhs, rhs, desc, mode)
-    vim.keymap.set(mode or { "n", "v" }, lhs, rhs, { silent = true, desc = desc })
-  end
-
-  map(leader_root .. "<CR>",          function() core.collect_digits() end, "NumHi: highlight with slot")
-  map(leader_root .. "0<CR>",         M.erase_under_cursor,              "NumHi: erase mark under cursor")
-
-  map(leader_root .. "u",             M.undo,                            "NumHi: undo")
-  map(leader_root .. "<C-r>",         M.redo,                            "NumHi: redo")
-
-  map(leader_root .. "nn",            function() core.edit_note() end,   "NumHi: create / edit note")
-  map(leader_root .. "nt",            function() core.toggle_tag_display() end, "NumHi: toggle tag display")
-
-  vim.keymap.set("n", leader_root .. "p", function() M.cycle_palette(1) end,
-                 { silent = true, desc = "NumHi: next palette" })
-end
-
-function M.status_component()
-  local pal = M.state.active_palette
-  local base_hl = core.ensure_hl(pal, 1)
-  local swatch = string.format("%%#%s#▉%%*", base_hl)
-  local parts = {}
-  for n = 1, 10 do
-    local hl = core.ensure_hl(pal, n)
-    parts[#parts + 1] = string.format("%%#%s#%s%%*", hl, (n % 10 == 0) and "0" or tostring(n))
-  end
-  return string.format("[%s %s %s]%%*", swatch, pal, table.concat(parts, ""))
-end
-
-local function attach_to_mini()
-  local ok, mini = pcall(require, "mini.statusline")
-  if not ok or mini.__numhi_patched then return ok end
-  mini.__numhi_patched = true
-  local orig = mini.section_location
-  mini.section_location = function()
-    return M.status_component() .. (orig and orig() or "")
-  end
-  return true
-end
-
-function M.attach_statusline()
-  if attach_to_mini() then return end
-
-  local function attach_lualine()
-    local ok, lualine = pcall(require, "lualine")
-    if not ok or lualine.__numhi_patched then return ok end
-    lualine.__numhi_patched = true
-    local comp = function() return M.status_component() end
-    vim.schedule(function()
-      local cfg = lualine.get_config and lualine.get_config() or {}
-      cfg.sections = cfg.sections or {}
-      cfg.sections.lualine_c = cfg.sections.lualine_c or {}
-      table.insert(cfg.sections.lualine_c, 1, comp)
-      lualine.setup(cfg)
-    end)
-    return true
-  end
-
-  if attach_lualine() then return end
-  vim.o.statusline = "%{%v:lua.require'numhi'.status_component()%}" .. vim.o.statusline
-end
-
-function M.create_hover_autocmd()
-  vim.api.nvim_create_autocmd("CursorHold", {
-    desc     = "NumHi: show label under cursor",
-    callback = core.show_label_under_cursor,
-  })
-  vim.opt.updatetime = math.min(vim.opt.updatetime:get(), M.state.opts.hover_delay)
-end
-
-return M
+return P
 
 ```

@@ -713,6 +713,11 @@ return {
     ---@type Flash.Config
     opts = {
       labels = "abcdefghijklmnopqrstuvwxyz",
+      mode = {
+        search = {
+          enabled = true,
+        },
+      },
       search = {
         multi_window = true,
         forward = true,
@@ -807,8 +812,8 @@ return {
           require("flash").jump({
             search  = { mode = "search", max_length = 0 },
             label   = { after = { 0, 0 } },
-            pattern = [[\S$]],
-          })
+            pattern = [[\ze$]],
+          }) 
         end,
         desc = "Jump to line end (exclusive)" },
 
