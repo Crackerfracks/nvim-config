@@ -6,6 +6,7 @@ metadata persistence
 local C        = {}
 local palettes = require("numhi.palettes").base
 local hsluv    = require("hsluv")
+local ui       = require("numhi.ui")
 local api      = vim.api
 local fn       = vim.fn
 local unpack_  = table.unpack or unpack
@@ -150,11 +151,14 @@ local function load_metadata(buf)
     local er, ec = m.er, clamp_col(buf, m.er, m.ec)
     if sc == ec then ec = ec + 1 end  -- never zero-width
 
+    local vt = nil
+    if State.show_tags and m.tags and #m.tags > 0 then
+      vt = { { "#" .. table.concat(m.tags, " #"), hl } }
+    end
     local id = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
       end_row = er, end_col = ec, hl_group = hl,
-      sign_text = "✎", sign_hl_group = "NumHiNoteSign",
-      virt_text = (m.tags and #m.tags > 0)
-        and { { "#" .. table.concat(m.tags, " #"), "NumHiNoteVirt" } } or nil,
+      sign_text = "✎", sign_hl_group = hl,
+      virt_text = vt,
       virt_text_pos = "eol",
     })
     if m.note then set_note(buf, id, m.note, m.tags or {}) end
@@ -179,6 +183,10 @@ local function apply_tag_virt(buf, ns, id, show)
   local pos = api.nvim_buf_get_extmark_by_id(buf, ns, id, { details = true })
   if not pos or not pos[1] then return end
 
+  local slot = tonumber(pos[3].hl_group:match("_(%d+)$"))
+  local pal  = pos[3].hl_group:match("NumHi_(.-)_") or State.active_palette
+  local hl   = ensure_hl(pal, slot)
+
   api.nvim_buf_set_extmark(
     buf, ns, pos[1], pos[2],
     {
@@ -187,8 +195,8 @@ local function apply_tag_virt(buf, ns, id, show)
       end_col  = pos[3].end_col,
       hl_group = pos[3].hl_group,
       sign_text      = "✎",
-      sign_hl_group  = "NumHiNoteSign",
-      virt_text      = vt and { { vt, "NumHiNoteVirt" } } or nil,
+      sign_hl_group  = hl,
+      virt_text      = vt and { { vt, hl } } or nil,
       virt_text_pos  = "eol",
     }
   )
@@ -209,7 +217,7 @@ end
 function C.setup(top)
   State = top.state
   State.notes = State.notes or {}
-  State.show_tags = true
+  State.show_tags = State.show_tags or false
 
   for _, pal in ipairs(State.opts.palettes) do
     ns_ids[pal] = api.nvim_create_namespace("numhi_" .. pal)
@@ -318,7 +326,7 @@ function C.collect_digits()
     local pal = State.active_palette
     local txt = (#digits > 0) and digits or "_"
     local hl  = (#digits > 0) and ensure_hl(pal, tonumber(digits)) or "Comment"
-    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR> to confirm, <BS> to undo", pal, txt), hl)
+    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR>:confirm  <BS>:clear  <Esc>:cancel", pal, txt), hl)
   end
   prompt()
   while true do
@@ -328,9 +336,12 @@ function C.collect_digits()
     if ch:match("%d") and #digits < 2 then
       digits = digits .. ch
       prompt()
-    elseif ch == "\b" or ch == "\127" then  -- backspace / delete
-      digits = digits:sub(1, -2)
+    elseif ch == "\b" or ch == "\127" then
+      digits = ""
       prompt()
+    elseif ch == "\27" then -- ESC
+      echo("")
+      return
     elseif ch == "\r" then
       local num = digits
       api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
@@ -379,10 +390,14 @@ local function recreate_mark(mark, pal)
   local buf, _, slot, sr, sc, er, ec, note, tags = unpack(mark)
   local ns   = ns_ids[pal]
   local hl   = ensure_hl(pal, slot)
+  local vt = nil
+  if tags and #tags > 0 and State.show_tags then
+    vt = { { tags_as_string(tags), hl } }
+  end
   local id   = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
     end_row = er, end_col = ec, hl_group = hl,
-    sign_text = (note and "✎" or nil), sign_hl_group = "NumHiNoteSign",
-    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), "NumHiNoteVirt" } } or nil,
+    sign_text = (note and "✎" or nil), sign_hl_group = hl,
+    virt_text = vt,
     virt_text_pos = "eol",
   })
   if note then set_note(buf, id, note, tags) end
@@ -446,11 +461,8 @@ function C.show_label_under_cursor()
       local slot   = tonumber(marks[1][4].hl_group:match("_(%d+)$"))
       local label  = State.labels[pal] and State.labels[pal][slot] or ""
       local note   = get_note(0, id)
-      local hl     = ensure_hl(pal, slot)
-      local msg    = ("NumHi  %s-%d"):format(pal, slot)
-      if label and label ~= "" then msg = msg .. ("  →  %s"):format(label) end
-      if note  then msg = msg .. "  ✎" end
-      echo(msg, hl)
+      ensure_hl(pal, slot)
+      ui.tooltip(pal, slot, label, note and note.note or nil, note and note.tags or nil)
       return
     end
   end
@@ -479,6 +491,7 @@ function C.edit_note()
       local id       = m[1]
       local slot     = tonumber(m[4].hl_group:match("_(%d+)$"))
       local note_tbl = get_note(0, id) or { note = "", tags = {} }
+      local src_buf  = api.nvim_get_current_buf()
 
       local bufname = ("NumHiNote:%d"):format(id)
       local buf     = fn.bufnr(bufname)
@@ -514,10 +527,10 @@ function C.edit_note()
         for _, line in ipairs(lines) do
           for tag in line:gmatch('#(%w+)') do tags[#tags + 1] = tag end
         end
-        set_note(0, id, content, tags)
-        apply_tag_virt(0, ns, id, State.show_tags)
+        set_note(src_buf, id, content, tags)
+        apply_tag_virt(src_buf, ns, id, State.show_tags)
         api.nvim_buf_set_option(buf, "modified", false)
-        save_metadata(0)
+        save_metadata(src_buf)
       end
 
       api.nvim_create_autocmd({ 'BufWriteCmd' }, {
