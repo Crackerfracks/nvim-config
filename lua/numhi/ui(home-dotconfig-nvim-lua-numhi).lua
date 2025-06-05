@@ -14,6 +14,7 @@ function M.tooltip(pal, slot, label, note, tags)
   local lines  = { first, second }
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   api.nvim_buf_add_highlight(buf, -1, string.format("NumHi_%s_%d", pal, slot), 0, 0, -1)
+  api.nvim_buf_add_highlight(buf, -1, string.format("NumHi_%s_%d", pal, slot), 1, 0, -1)
   local win = api.nvim_open_win(buf, false, {
     relative = "cursor",
     row      = 1,
