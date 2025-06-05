@@ -163,7 +163,10 @@ local function load_metadata(buf)
       virt_text = vt,
       virt_text_pos = "eol",
     })
-    if m.note then set_note(buf, id, m.note, m.tags or {}) end
+    if m.note then
+      set_note(buf, id, m.note, m.tags or {})
+      if State.show_note_lines then apply_note_lines(buf, ns, id, true) end
+    end
     State.labels[m.pal] = State.labels[m.pal] or {}
     if m.label then State.labels[m.pal][m.slot] = m.label end
   end
@@ -215,12 +218,59 @@ local function refresh_all_tag_vt(buf)
 end
 
 ---------------------------------------------------------------------
+--  Note-line helpers ------------------------------------------------
+---------------------------------------------------------------------
+local function apply_note_lines(buf, ns, id, show)
+  local note = get_note(buf, id)
+  if not note then return end
+  local pos = api.nvim_buf_get_extmark_by_id(buf, ns, id, { details = true })
+  if not pos or not pos[1] then return end
+
+  local slot = tonumber(pos[3].hl_group:match("_(%d+)$"))
+  local pal  = pos[3].hl_group:match("NumHi_(.-)_") or State.active_palette
+  local hl   = ensure_hl(pal, slot)
+
+  local virt_lines = nil
+  if show and note.note and note.note ~= "" then
+    virt_lines = {}
+    for _, ln in ipairs(vim.split(note.note, "\n")) do
+      table.insert(virt_lines, { { ln, hl } })
+    end
+  end
+
+  api.nvim_buf_set_extmark(buf, ns, pos[1], pos[2], {
+    id       = id,
+    end_row  = pos[3].end_row,
+    end_col  = pos[3].end_col,
+    hl_group = pos[3].hl_group,
+    sign_text      = (State.show_tags and (note.note ~= "" or (note.tags and #note.tags > 0)) and "✎" or nil),
+    sign_hl_group  = hl,
+    priority       = SIGN_PRIORITY,
+    virt_text      = pos[3].virt_text,
+    virt_text_pos  = "eol",
+    virt_lines     = virt_lines,
+    virt_lines_above = false,
+  })
+end
+
+local function refresh_all_note_lines(buf)
+  local show = State.show_note_lines
+  for pal, ns in pairs(ns_ids) do
+    for id, _ in pairs(note_store(buf)) do
+      apply_note_lines(buf, ns, id, show)
+    end
+  end
+end
+
+---------------------------------------------------------------------
 --  Setup ------------------------------------------------------------
 ---------------------------------------------------------------------
 function C.setup(top)
   State = top.state
   State.notes = State.notes or {}
   State.show_tags = State.show_tags or false
+  State.show_note_lines = State.show_note_lines or false
+  State.note_mode = State.note_mode or "hover"
 
   for _, pal in ipairs(State.opts.palettes) do
     ns_ids[pal] = api.nvim_create_namespace("numhi_" .. pal)
@@ -405,7 +455,10 @@ local function recreate_mark(mark, pal)
     virt_text = vt,
     virt_text_pos = "eol",
   })
-  if note then set_note(buf, id, note, tags) end
+  if note then
+    set_note(buf, id, note, tags)
+    if State.show_note_lines then apply_note_lines(buf, ns, id, true) end
+  end
   mark[2] = id  -- update stored id for possible further undo/redo
 end
 
@@ -481,6 +534,55 @@ function C.toggle_tag_display()
   refresh_all_tag_vt(0)
 end
 
+function C.toggle_note_lines()
+  State.show_note_lines = not State.show_note_lines
+  refresh_all_note_lines(0)
+end
+
+function C.cycle_note_mode()
+  local modes = { "hover", "inline" }
+  local idx = index_of(modes, State.note_mode) or 1
+  idx = idx % #modes + 1
+  State.note_mode = modes[idx]
+  State.show_note_lines = (State.note_mode == "inline")
+  refresh_all_note_lines(0)
+end
+
+function C.search_by_tag()
+  vim.ui.input({ prompt = "NumHi tag search: " }, function(tag)
+    if not tag or tag == "" then return end
+    local items = {}
+    for buf, notes in pairs(State.notes) do
+      for id, note in pairs(notes) do
+        for _, t in ipairs(note.tags or {}) do
+          if t == tag then
+            local pos, ns_found
+            for pal, ns in pairs(ns_ids) do
+              pos = api.nvim_buf_get_extmark_by_id(buf, ns, id, {})
+              if pos and pos[1] then ns_found = ns; break end
+            end
+            if pos and pos[1] then
+              table.insert(items, {
+                bufnr = buf,
+                lnum  = pos[1] + 1,
+                col   = pos[2] + 1,
+                text  = api.nvim_buf_get_lines(buf, pos[1], pos[1]+1, false)[1],
+              })
+            end
+            break
+          end
+        end
+      end
+    end
+    if #items == 0 then
+      echo("No notes with tag #" .. tag)
+      return
+    end
+    fn.setqflist({}, ' ', { title = 'NumHi tag #' .. tag, items = items })
+    vim.cmd('copen')
+  end)
+end
+
 ---------------------------------------------------------------------
 --  Note editor ------------------------------------------------------
 ---------------------------------------------------------------------
@@ -534,6 +636,7 @@ function C.edit_note()
         end
         set_note(src_buf, id, content, tags)
         apply_tag_virt(src_buf, ns, id, State.show_tags)
+        if State.show_note_lines then apply_note_lines(src_buf, ns, id, true) end
         api.nvim_buf_set_option(buf, "modified", false)
         save_metadata(src_buf)
       end

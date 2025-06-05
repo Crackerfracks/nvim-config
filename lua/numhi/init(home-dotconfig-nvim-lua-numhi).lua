@@ -22,6 +22,8 @@ M.state = {
   labels         = {},
   notes          = {},
   show_tags      = false,
+  show_note_lines = false,
+  note_mode      = "hover",
   opts           = {},
 }
 
@@ -44,7 +46,8 @@ end
 -----------------------------------------------------------------------
 for _, f in ipairs { "highlight","erase_under_cursor","undo","redo",
                      "cycle_palette","toggle_tag_display","collect_digits",
-                     "edit_note","show_label_under_cursor" } do
+                     "edit_note","show_label_under_cursor",
+                     "toggle_note_lines","search_by_tag","cycle_note_mode" } do
   M[f] = function(...) return core[f](...) end
 end
 
@@ -68,6 +71,9 @@ function M.create_keymaps()
   -- Notes & tags
   map(leader_root .. "nn",            function() core.edit_note() end,   "NumHi: create / edit note")
   map(leader_root .. "nt",            function() core.toggle_tag_display() end, "NumHi: toggle tag display")
+  map(leader_root .. "nl",            function() core.toggle_note_lines() end, "NumHi: toggle inline notes")
+  map(leader_root .. "ns",            function() core.search_by_tag() end,   "NumHi: search by tag")
+  map(leader_root .. "nm",            function() core.cycle_note_mode() end, "NumHi: cycle note mode")
 
   -- Palette cycle
   vim.keymap.set("n", leader_root .. "p", function() M.cycle_palette(1) end,
