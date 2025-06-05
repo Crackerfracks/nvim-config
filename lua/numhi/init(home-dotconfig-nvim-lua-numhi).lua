@@ -21,7 +21,7 @@ M.state = {
   redo_stack     = {},
   labels         = {},
   notes          = {},
-  show_tags      = true,
+  show_tags      = false,
   opts           = {},
 }
 
