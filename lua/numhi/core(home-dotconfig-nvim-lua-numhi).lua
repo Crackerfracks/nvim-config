@@ -14,6 +14,7 @@ local unpack_  = table.unpack or unpack
 --  Internal state ---------------------------------------------------
 ---------------------------------------------------------------------
 local ns_ids        = {}        -- palette → namespace id
+local ns_to_pal     = {}        -- reverse lookup
 local State                         -- back-pointer filled by setup()
 local _loaded_bufs   = {}         -- avoid double-loading metadata
 
@@ -48,6 +49,18 @@ local function ensure_hl(pal, slot)
     api.nvim_set_hl(0, group, { bg = "#" .. bg, fg = contrast_fg(bg) })
   end
   return group
+end
+
+local tag_hl_cache = {}
+local function ensure_tag_hl(pal, slot)
+  tag_hl_cache[pal] = tag_hl_cache[pal] or {}
+  local group = ("NumHi_%s_Tag_%d"):format(pal, slot)
+  if not tag_hl_cache[pal][slot] then
+    local fg = slot_to_color(pal, slot)
+    api.nvim_set_hl(0, group, { fg = "#" .. fg, bg = "NONE" })
+    tag_hl_cache[pal][slot] = group
+  end
+  return tag_hl_cache[pal][slot]
 end
 
 local function ensure_note_hl()
@@ -93,6 +106,11 @@ local function set_note(buf, id, note, tags)
   note_store(buf)[id] = { note = note, tags = tags or {} }
 end
 
+local function label_store(buf)
+  State.labels[buf] = State.labels[buf] or {}
+  return State.labels[buf]
+end
+
 ---------------------------------------------------------------------
 --  On-disk persistence ----------------------------------------------
 ---------------------------------------------------------------------
@@ -120,7 +138,7 @@ local function save_metadata(buf)
         sr       = sr, sc = sc,
         er       = details.end_row, ec = details.end_col,
         id       = id,
-        label    = (State.labels[pal] or {})[tonumber(details.hl_group:match("_(%d+)$"))],
+        label    = ((State.labels[buf] or {})[pal] or {})[tonumber(details.hl_group:match("_(%d+)$"))],
         note     = (note_store(buf)[id] or {}).note,
         tags     = (note_store(buf)[id] or {}).tags,
       }
@@ -154,14 +172,13 @@ local function load_metadata(buf)
       end_row = er,
       end_col = ec,
       hl_group = hl,
-      sign_text = "✎",
-      sign_hl_group = hl,
-      virt_text = (m.tags and #m.tags > 0) and { { "#" .. table.concat(m.tags, " #"), hl } } or nil,
+      virt_text = (m.tags and #m.tags > 0) and { { "#" .. table.concat(m.tags, " #"), ensure_tag_hl(m.pal, m.slot) } } or nil,
       virt_text_pos = "eol",
     })
     if m.note then set_note(buf, id, m.note, m.tags or {}) end
-    State.labels[m.pal] = State.labels[m.pal] or {}
-    if m.label then State.labels[m.pal][m.slot] = m.label end
+    local lbls = label_store(buf)
+    lbls[m.pal] = lbls[m.pal] or {}
+    if m.label then lbls[m.pal][m.slot] = m.label end
   end
 end
 
@@ -181,6 +198,8 @@ local function apply_tag_virt(buf, ns, id, show)
   local pos = api.nvim_buf_get_extmark_by_id(buf, ns, id, { details = true })
   if not pos or not pos[1] then return end
 
+  local pal = ns_to_pal[ns]
+  local slot = tonumber(pos[3].hl_group:match("_(%d+)$"))
   api.nvim_buf_set_extmark(
     buf,
     ns,
@@ -191,9 +210,7 @@ local function apply_tag_virt(buf, ns, id, show)
       end_row = pos[3].end_row,
       end_col = pos[3].end_col,
       hl_group = pos[3].hl_group,
-      sign_text = "✎",
-      sign_hl_group = pos[3].hl_group,
-      virt_text = vt and { { vt, pos[3].hl_group } } or nil,
+      virt_text = vt and { { vt, ensure_tag_hl(pal, slot) } } or nil,
       virt_text_pos = "eol",
     }
   )
@@ -217,7 +234,9 @@ function C.setup(top)
   State.show_tags = true
 
   for _, pal in ipairs(State.opts.palettes) do
-    ns_ids[pal] = api.nvim_create_namespace("numhi_" .. pal)
+    local ns = api.nvim_create_namespace("numhi_" .. pal)
+    ns_ids[pal] = ns
+    ns_to_pal[ns] = pal
   end
   ensure_note_hl()
 
@@ -249,18 +268,19 @@ end
 ---------------------------------------------------------------------
 --  Labels -----------------------------------------------------------
 ---------------------------------------------------------------------
-local function get_label(pal, slot)
-  State.labels[pal] = State.labels[pal] or {}
-  local label       = State.labels[pal][slot]
+local function get_label(buf, pal, slot)
+  local store = label_store(buf)
+  store[pal] = store[pal] or {}
+  local label = store[pal][slot]
   if not label then
     vim.ui.input(
       { prompt = ("NumHi %s-%d label (empty = none): "):format(pal, slot) },
       function(input)
-        if input and input ~= "" then State.labels[pal][slot] = input end
+        if input and input ~= "" then store[pal][slot] = input end
       end
     )
   end
-  return State.labels[pal][slot]
+  return store[pal][slot]
 end
 
 ---------------------------------------------------------------------
@@ -310,7 +330,7 @@ function C.highlight(slot)
   )
   table.insert(marks, store_mark(0, id, slot, start_row, start_col, end_row, end_col))
 
-  get_label(pal, slot)
+  get_label(0, pal, slot)
 
   table.insert(State.history, { pal = pal, slot = slot, marks = marks })
   State.redo_stack = {}
@@ -323,38 +343,49 @@ end
 --  Digit-collector --------------------------------------------------
 ---------------------------------------------------------------------
 function C.collect_digits()
+  local pal = State.active_palette
+  local buf = api.nvim_create_buf(false, true)
+  api.nvim_buf_set_option(buf, 'buftype', 'prompt')
+  api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
+
+  local width = 8
+  local win = api.nvim_open_win(buf, true, {
+    relative = 'cursor', row = 1, col = 0,
+    width = width, height = 1,
+    style = 'minimal', border = 'rounded',
+  })
+
   local digits = ""
-  local function prompt()
-    local pal = State.active_palette
-    local txt = (#digits > 0) and digits or "_"
-    local hl = (#digits > 0) and ensure_hl(pal, tonumber(digits)) or "Comment"
-    echo(string.format("NumHi %s ◈ slot: %s (1-99)  <CR> confirm  <BS> clear  <ESC> cancel", pal, txt), hl)
-  end
-  prompt()
-  while true do
-    local ok, ch = pcall(fn.getchar)
-    if not ok then return end
-    if type(ch) == "number" then ch = fn.nr2char(ch) end
-    if ch:match("%d") and #digits < 2 then
-      digits = digits .. ch
-      prompt()
-    elseif ch == "\b" or ch == "\127" then -- clear
-      digits = ""
-      prompt()
-    elseif ch == string.char(27) then -- escape
-      echo("")
-      return
-    elseif ch == "\r" then
-      local num = digits
-      api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
-      vim.schedule(function() C.highlight(num) end)
-      echo("")
-      return
-    else
-      echo("")  -- cancel
-      return
+
+  local function update()
+    local line = (api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""):gsub("%D", "")
+    if #line > 2 then line = line:sub(-2) end
+    digits = line
+    api.nvim_buf_set_lines(buf, 0, -1, false, { digits })
+    api.nvim_buf_clear_namespace(buf, 0, 0, -1)
+    local num = tonumber(digits)
+    if num then
+      local hl = ensure_hl(pal, num)
+      api.nvim_buf_add_highlight(buf, 0, hl, 0, 0, -1)
     end
   end
+
+  api.nvim_buf_attach(buf, false, { on_lines = function() vim.schedule(update) end })
+
+  local function finish(cancel)
+    if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
+    if not cancel then
+      local num = tonumber(digits)
+      if num and num >= 1 and num <= 99 then
+        vim.schedule(function() C.highlight(num) end)
+      end
+    end
+  end
+
+  api.nvim_buf_set_keymap(buf, 'n', '<CR>', '', { callback = function() finish(false) end, silent = true, nowait = true })
+  api.nvim_buf_set_keymap(buf, 'i', '<CR>', '', { callback = function() finish(false) end, silent = true, nowait = true })
+  api.nvim_buf_set_keymap(buf, 'n', '<Esc>', '', { callback = function() finish(true) end, silent = true, nowait = true })
+  api.nvim_buf_set_keymap(buf, 'i', '<Esc>', '', { callback = function() finish(true) end, silent = true, nowait = true })
 end
 
 ---------------------------------------------------------------------
@@ -394,8 +425,7 @@ local function recreate_mark(mark, pal)
   local hl   = ensure_hl(pal, slot)
   local id   = api.nvim_buf_set_extmark(buf, ns, sr, sc, {
     end_row = er, end_col = ec, hl_group = hl,
-    sign_text = (note and "✎" or nil), sign_hl_group = hl,
-    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), hl } } or nil,
+    virt_text = (tags and #tags > 0) and { { tags_as_string(tags), ensure_tag_hl(pal, slot) } } or nil,
     virt_text_pos = "eol",
   })
   if note then set_note(buf, id, note, tags) end
@@ -457,7 +487,8 @@ function C.show_label_under_cursor()
     if #marks > 0 then
       local id     = marks[1][1]
       local slot   = tonumber(marks[1][4].hl_group:match("_(%d+)$"))
-      local label  = State.labels[pal] and State.labels[pal][slot] or ""
+      local lbls = label_store(0)
+      local label = (lbls[pal] and lbls[pal][slot]) or ""
       local note   = get_note(0, id)
       require('numhi.ui').tooltip(pal, slot, label, note and note.note or nil, note and note.tags or nil)
       return
@@ -547,7 +578,13 @@ function C.edit_note()
       })
 
       -- 'q' to write & quit
-      api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>write | close<CR>", { silent = true })
+      api.nvim_buf_set_keymap(buf, "n", "q", "", {
+        callback = function()
+          save()
+          if api.nvim_win_is_valid(win) then api.nvim_win_close(win, true) end
+        end,
+        silent = true,
+      })
 
       return
     end

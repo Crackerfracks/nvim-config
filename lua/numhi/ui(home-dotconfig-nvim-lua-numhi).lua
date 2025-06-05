@@ -21,12 +21,14 @@ function M.tooltip(pal, slot, label, note, tags)
 
   local width = 0
   for _, l in ipairs(lines) do width = math.max(width, #l) end
+  width = math.min(width + 2, math.floor(vim.o.columns * 0.5))
+  local height = math.min(#lines, math.floor(vim.o.lines * 0.5))
   local win = api.nvim_open_win(buf, false, {
     relative = 'cursor',
     row = 1,
     col = 0,
-    width = width + 2,
-    height = #lines,
+    width = width,
+    height = height,
     style = 'minimal',
     border = 'rounded',
   })
