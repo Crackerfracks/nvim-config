@@ -177,7 +177,7 @@ vim.opt.scrolloff = 10
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- nvumi Natural Language calculator
-vim.keymap.set("n", "<leader>on", "<CMD>Nvumi<CR>", { desc = "[O]pen [N]vumi" })
+vim.keymap.set("n", "<leader><leader>on", "<CMD>Nvumi<CR>", { desc = "[O]pen [N]vumi" })
 
 -- Remapping the hyphen ('-') for Jump To Line in flash.nvim
 vim.keymap.set({ 'n', 'x', 'o' }, '<leader>-', '-')
@@ -250,23 +250,6 @@ vim.keymap.set("n", "<leader><leader><leader>s", ":%s/\\<<C-r><C-w>\\>/<C-r><C-w
 
 -- Make file executable
 vim.keymap.set("n", "<leader>x", "<cmd>!chmod +x %<CR>", { silent = true, desc = "Make current file executable" })
-
--- Fucking autolists, goddamn this was a pain in the ass
-vim.api.nvim_create_autocmd("FileType", {
-  desc = "markdown-toggle.nvim keymaps",
-  pattern = { "markdown", "markdown.mdx" },
-  callback = function(args)
-    local opts = { silent = true, noremap = true, buffer = args.buf }
-    local toggle = require("markdown-toggle")
-
-
-    vim.keymap.set({ "n", "x" }, "<CR>", toggle.checkbox, opts)
-    vim.keymap.set({ "n", "x" }, "<M-CR>", toggle.checkbox_cycle, opts)
-    -- Option-switching keymaps
-    -- Keymap configurations will be added here for each feature
-
-  end,
-})
 
 
 
@@ -459,13 +442,13 @@ require('lazy').setup({
 
       -- Document existing key chains
       spec = {
-        { '<leader><leader>c', group = '[C]ode', mode = { 'n', 'x' } },
-        { '<leader><leader>d', group = '[D]ocument' },
-        { '<leader><leader>r', group = '[R]ename' },
-        { '<leader><leader>s', group = '[S]earch' },
-        { '<leader><leader>w', group = '[W]orkspace' },
-        { '<leader><leader>t', group = '[T]oggle' },
-        { '<leader><leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader><leader><leader>c', group = '[C]ode', mode = { 'n', 'x' } },
+        { '<leader><leader><leader>d', group = '[D]ocument' },
+        { '<leader><leader><leader>r', group = '[R]ename' },
+        { '<leader><leader><leader>S', group = '[S]earch' },
+        { '<leader><leader><leader>w', group = '[W]orkspace' },
+        { '<leader><leader><leader>t', group = '[T]oggle' },
+        { '<leader><leader><leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       },
     },
   },
@@ -670,11 +653,11 @@ require('lazy').setup({
           -- Jump to the type of the word under your cursor.
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
-          map('<leader>D', require('telescope.builtin').lsp_type_definitions, 'Type [D]efinition')
+          map('<leader>Dt', require('telescope.builtin').lsp_type_definitions, 'Type [D]efinition')
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
+          map('<leader>Ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
 
           -- Fuzzy find all the symbols in your current workspace.
           --  Similar to document symbols, except searches over your entire project.
@@ -726,7 +709,7 @@ require('lazy').setup({
           --
           -- This may be unwanted, since they displace some of your code
           if client and client.supports_method(vim.lsp.protocol.Methods.textDocument_inlayHint) then
-            map('<leader>th', function()
+            map('<leader><leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
           end
@@ -892,6 +875,7 @@ require('lazy').setup({
       require('mini.ai').setup { n_lines = 500 }
       -- require('mini.sessions').setup{ autoread = true }
       -- require('mini.map').setup() -- <-<-<-<- You disabled this for 'petertriho/nvim-scrollbar' -- <-<-<-<- You disabled this for 'petertriho/nvim-scrollbar'
+      require('mini.icons').setup()
       require('mini.move').setup({
         -- No need to copy this inside `setup()`. Will be used automatically.
 

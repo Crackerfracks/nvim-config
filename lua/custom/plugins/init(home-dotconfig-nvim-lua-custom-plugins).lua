@@ -4,38 +4,111 @@
 -- See the kickstart.nvim README for more information
 
 return {
-  -- {
-  --   "nvim-neorg/neorg",
-  --   config = function()
-  --     require("neorg").setup({
-  --       load = {
-  --         ["core.defaults"] = {},
-  --         ["core.dirman"] = {
-  --           config = {
-  --             workspaces = {
-  --               neovim_config = "~/nvim_config_notes",
-  --               notes = "~/notes",
-  --               code = "~/code",
-  --               neorg_tutorial = "~/neorg_tutorial",
-  --               work = "~/Documents/NEW_WORK_NOTES/NeorgWorkspace",
-  --             },
-  --             default_workspace = "work"
-  --           },
-  --         },
-  --         ["core.concealer"] = {
-  --           config = { -- We added a `config` table!
-  --             icon_preset = "varied", -- And we set our option here.
-  --           },
-  --         },
-  --         ["core.summary"] = {},
-  --         ["core.export"] = {},
-  --         ["core.journal"] = {},
-  --       }
-  --     })
-  --   end,
-  --   lazy = false, -- Disable lazy loading as some `lazy.nvim` distributions set `lazy = true` by default
-  --   version = "*", -- Pin Neorg to the latest stable release
-  -- },
+  {
+    'pteroctopus/faster.nvim'
+  },
+  {
+    "stevearc/oil.nvim",
+    lazy = false,        -- load eagerly so FileType=oil autocmds are predictable
+    opts = {
+      default_file_explorer = true,  -- keep netrw available
+      view_options = {
+        show_hidden = false,      -- list files that start with “.”
+      },
+      --  🚨  These keymaps live ONLY inside an Oil buffer 
+      keymaps = {
+        ["s"]        = false,                 -- free `s` for Flash
+        ["-"]        = false,                 -- free `-` for Flash
+        ["<BS>"]     = "actions.parent",      -- Backspace → parent dir
+        ["<leader>s"] = "actions.change_sort", -- <leader>s → sort toggle
+        ["g."] = "actions.toggle_hidden",
+        ["<leader><C-s>"] = false,
+        ["<leader><C-h>"] = false,
+        ["<leader><C-l>"] = false,
+        ["<C-h>"] = false,
+        ["<C-k>"] = false,
+        ["<C-l>"] = false,
+        ["<C-j>"] = false,
+        -- (optional) keep `gs` mapped to sort as an alias:
+        -- ["gs"] = "actions.change_sort",
+      },
+    },
+    config = function(_, opts)
+      require("oil").setup(opts)
+    end
+  },
+  {
+    'akinsho/org-bullets.nvim',
+    config = function()
+      require('org-bullets').setup()
+  end
+  },
+  -----------------------------------------------------------------------
+  -- orgmode.nvim — Org‑mode core  +  capture
+  -----------------------------------------------------------------------
+  {
+    "nvim-orgmode/orgmode",
+    version = "*",
+    lazy = false,  -- load on startup so <leader>oa works instantly
+    config = function()
+      local org = require("orgmode")
+      org.setup({
+        --- BASIC PATHS ---------------------------------------------------
+        org_agenda_files        = { "~/org/**/*" },   -- adjust to taste
+        org_default_notes_file  = "~/org/refile.org",
+        --- KEYWORDS & TAGS ----------------------------------------------
+        org_todo_keywords       = {"TODO(t)", "IN‑PROGRESS(i)", "WAIT(w)", "|", "DONE(d)", "CANCEL(c)"},
+        org_todo_keyword_faces  = { WAIT = ":foreground #f9e2af :weight bold" },
+
+        --- CAPTURE TEMPLATES --------------------------------------------
+        org_capture_templates   = {
+          p = {
+            description = "Personal",
+            target      = "~/org/personal/inbox.org",
+            template    = "* TODO %?\n  %u\n  :PROPERTIES:\n  :TAG:  Personal\n  :END:",
+          },
+          f = {
+            description = "AI‑Freelance",
+            target      = "~/org/freelance/inbox.org",
+            template    = "* TODO %?\n  %u\n  :PROPERTIES:\n  :TAG:  AI-Freelance\n  :END:",
+          },
+          t = {
+            description = "Work‑TEKsys",
+            target      = "~/org/teksys/inbox.org",
+            template    = "* TODO %?\n  %u\n  :PROPERTIES:\n  :TAG:  Work-TEKsys\n  :END:",
+          },
+          c = {
+            description = "Coding / Plugin‑Dev",
+            target      = "~/org/code/inbox.org" ,
+            template    = "* TODO %?\n  %u\n  :PROPERTIES:\n  :TAG:  Coding / Plugin-Dev\n  :END:",
+          },
+        },
+      })
+    end,
+  },
+
+  -----------------------------------------------------------------------
+  -- legendary.nvim — key legends + bootstrap dashboards
+  -----------------------------------------------------------------------
+  {
+    "mrjones2014/legendary.nvim",
+    version = "*",
+    lazy = false,
+    dependencies = {
+      "folke/which-key.nvim",
+      "folke/snacks.nvim",
+      "MunifTanjim/nui.nvim",
+    },
+    config = function()
+      local legendary = require("legendary")
+      legendary.setup({
+        extensions = {
+          which_key = { auto_register = true }, -- new location
+          lazy_nvim = true,
+        },
+      })
+    end,
+  },
   {
     "epwalsh/obsidian.nvim",
     version = "*",  -- recommended, use latest release instead of latest commit
@@ -219,8 +292,16 @@ return {
       -- Default list of enabled providers defined so that you can extend it
       -- elsewhere in your config, without redefining it, due to `opts_extend`
       sources = {
+        per_filetype = {
+          org = {'orgmode'}
+        },
         default = { 'lazydev', 'lsp', 'path', 'snippets', 'buffer' },
         providers = {
+          orgmode = {
+            name = 'Orgmode',
+            module = 'orgmode.org.autocompletion.blink',
+            fallbacks = { 'buffer' },
+          },
           lazydev = {
             name = "LazyDev",
             module = "lazydev.integrations.blink",
@@ -338,7 +419,7 @@ return {
       -- END REQUIRED
 
       -- Add file to Harpoon list
-      vim.keymap.set("n", "<leader>a", function() harpoon:list():add() end, { desc = "Add file to Harpoon" })
+      vim.keymap.set("n", "<leader><leader><leader>a", function() harpoon:list():add() end, { desc = "Add file to Harpoon" })
 
       -- Toggle the Harpoon quick menu with the current list
       vim.keymap.set("n", "<leader>e", function()
@@ -369,15 +450,23 @@ return {
     priority = 1000,
     version = "*",
     ---@type snacks.Config:
+    dependencies = {
+      "nvim-orgmode/orgmode",      -- already present
+      "nvim-lua/plenary.nvim",     -- snacks utilities
+      "nvim-tree/nvim-web-devicons",
+      "echasnovski/mini.icons",                -- pretty glyphs for the buttons
+    },
     opts = {
       animate = {
-        enabled = true,
+        enabled = false,
         easing = "outInBounce",
         duration = 5,
         fps = 120
       },
       bigfile = { enabled = true },
-      dashboard = { enabled = true },
+      dashboard = {
+        enabled = true,
+      },
       indent = { enabled = false },
       input = { enabled = true },
       notifier = { enabled = true },
@@ -478,60 +567,60 @@ return {
   --   dependencies = { 'nvim-treesitter/nvim-treesitter', 'echasnovski/mini.nvim' },
   --   opts = {},
   -- },
-  {
-    "Vigemus/iron.nvim",
-    config = function()
-      local iron = require("iron.core")
-      local view = require("iron.view")
-      local common = require("iron.fts.common")
-
-      iron.setup {
-        config = {
-          scratch_repl = true,
-          repl_definition = {
-            sh = { command = {"zsh"} },
-            python = {
-              command = { "python3" },
-              format = common.bracketed_paste_python,
-              block_deviders = { "# %%", "#%%" },
-            },
-          },
-          repl_filetype = function(bufnr, ft)
-            return ft
-          end,
-          repl_open_cmd = view.split.horizontal.botright(0.4),
-        },
-        keymaps = {
-          toggle_repl = "<leader>rr",
-          restart_repl = "<leader>rR",
-          send_motion = "<leader>rsc",
-          visual_send = "<leader>rsc",
-          send_file = "<leader>rsf",
-          send_line = "<leader>rsl",
-          send_paragraph = "<leader>rsp",
-          send_until_cursor = "<leader>rsu",
-          send_mark = "<leader>rsm",
-          send_code_block = "<leader>rsb",
-          send_code_block_and_move = "<leader>rsn",
-          mark_motion = "<leader>rmc",
-          mark_visual = "<leader>rmc",
-          remove_mark = "<leader>rmd",
-          cr = "<leader>rs<cr>",
-          interrupt = "<leader>rs <leader>",
-          exit = "<leader>rsq",
-          clear = "<leader>rcl",
-        },
-        highlight = { italic = true },
-        ignore_blank_lines = true,
-      }
-
-      vim.keymap.set('n', '<leader>rf', '<cmd>IronFocus<cr>')
-      vim.keymap.set('n', '<leader>rh', '<cmd>IronHide<cr>')
-    end,
-  },
-  {
-    "kmonad/kmonad-vim"
-  },
+  -- {
+  --   "Vigemus/iron.nvim",
+  --   config = function()
+  --     local iron = require("iron.core")
+  --     local view = require("iron.view")
+  --     local common = require("iron.fts.common")
+  --
+  --     iron.setup {
+  --       config = {
+  --         scratch_repl = true,
+  --         repl_definition = {
+  --           sh = { command = {"zsh"} },
+  --           python = {
+  --             command = { "python3" },
+  --             format = common.bracketed_paste_python,
+  --             block_deviders = { "# %%", "#%%" },
+  --           },
+  --         },
+  --         repl_filetype = function(bufnr, ft)
+  --           return ft
+  --         end,
+  --         repl_open_cmd = view.split.horizontal.botright(0.4),
+  --       },
+  --       keymaps = {
+  --         toggle_repl = "<leader>rr",
+  --         restart_repl = "<leader>rR",
+  --         send_motion = "<leader>rsc",
+  --         visual_send = "<leader>rsc",
+  --         send_file = "<leader>rsf",
+  --         send_line = "<leader>rsl",
+  --         send_paragraph = "<leader>rsp",
+  --         send_until_cursor = "<leader>rsu",
+  --         send_mark = "<leader>rsm",
+  --         send_code_block = "<leader>rsb",
+  --         send_code_block_and_move = "<leader>rsn",
+  --         mark_motion = "<leader>rmc",
+  --         mark_visual = "<leader>rmc",
+  --         remove_mark = "<leader>rmd",
+  --         cr = "<leader>rs<cr>",
+  --         interrupt = "<leader>rs <leader>",
+  --         exit = "<leader>rsq",
+  --         clear = "<leader>rcl",
+  --       },
+  --       highlight = { italic = true },
+  --       ignore_blank_lines = true,
+  --     }
+  --
+  --     vim.keymap.set('n', '<leader>rf', '<cmd>IronFocus<cr>')
+  --     vim.keymap.set('n', '<leader>rh', '<cmd>IronHide<cr>')
+  --   end,
+  -- },
+  -- {
+  --   "kmonad/kmonad-vim"
+  -- },
   {
     "HiPhish/rainbow-delimiters.nvim"
   },
@@ -812,7 +901,7 @@ return {
           require("flash").jump({
             search  = { mode = "search", max_length = 0 },
             label   = { after = { 0, 0 } },
-            pattern = [[\ze$]],
+            pattern = [[\_$]],
           }) 
         end,
         desc = "Jump to line end (exclusive)" },
@@ -872,7 +961,7 @@ return {
         stiffness_insert_mode = 0.2,
         trailing_stiffness_insert_mode = 0.1,
         trailing_exponent_insert_mode = 1,
-        max_length = 35,
+        max_length = 15,
         -- transparent_bg_fallback_color = "#303030"
         hide_target_hack = true,
         lecacy_computing_symbols_support = true
@@ -883,235 +972,265 @@ return {
   -- Screenkey.nvim – custom settings -------------------------------------------
   --------------------------------------------------------------------------------
   -- NOTE: paste the whole block; no further edits required
-  {
-    "NStefan002/screenkey.nvim",
-    lazy = false,
-    version = "*",
-    config = function()
-      ---------------------------------------------------------------------------
-      -- 1.  Window in TOP‑RIGHT corner (anchor = "NE") -------------------------
-      ---------------------------------------------------------------------------
-      local W = require("screenkey")
-      W.setup({
-        win_opts = {
-          -- put the *north‑east* corner of the float at the very top‑right cell
-          row      = 0,                         -- 0 == first editor row :contentReference[oaicite:0]{index=0}
-          col      = vim.o.columns - 1,         -- right‑most screen column
-          relative = "editor",
-          anchor   = "NE",                      -- <‑‑ key bit ☝︎ :contentReference[oaicite:1]{index=1}
-          width    = 100,
-          height   = 1,
-          border   = "single",
-          title    = "Keyboard Input",
-          title_pos= "center",
-          style    = "minimal",
-          focusable= false,
-          noautocmd= false,
-          zindex   = 60,                        -- keep it above most pop‑ups
-        },
-
-        ------------------------------------------------------------------------
-        -- 2.  Make every keypress trigger a redraw ----------------------------
-        ------------------------------------------------------------------------
-        -- Screenkey already intercepts <Esc>, <CR> … but some plugins feed
-        -- input through low‑level APIs that never reach it.  By piggy‑backing
-        -- on Neovim ≥ 0.10’s `vim.on_key()` we can refresh on *all* input
-        -- (the callback fires *before* mappings are applied) :contentReference[oaicite:2]{index=2}
-        ------------------------------------------------------------------------
-        -- redrawing      = true,   -- (fictional option to remind ourselves)
-        compress_after = 6,      -- disable time‑based compression entirely
-        clear_after    = 10,     -- keep the previous behaviour
-        group_mappings = true,   -- treat “gg”, “cc”, etc. as a single combo :contentReference[oaicite:3]{index=3}
-        disable        = {
-          filetypes = {},
-          buftypes  = {},
-          events    = false,
-        },
-      })
-
-      -- Force‑redraw hook
-      local ns = vim.api.nvim_create_namespace("screenkey_force_redraw")
-      vim.on_key(function()
-        if W.is_active() then
-          vim.schedule(W.redraw)                -- run outside low‑level input
-        end
-      end, ns)
-
-      --------------------------------------------------------------------------
-      -- 3.  Keybinding: <leader><leader><leader> toggles Screenkey ------------
-      --------------------------------------------------------------------------
-      vim.keymap.set(
-        "n",
-        "<leader><leader><leader>K",
-        W.toggle,
-        { desc = "Toggle Screenkey" }           -- helpful for which‑key lists
-      )
-    end,
-  },
+  -- {
+  --   "NStefan002/screenkey.nvim",
+  --   lazy = false,
+  --   version = "*",
+  --   config = function()
+  --     ---------------------------------------------------------------------------
+  --     -- 1.  Window in TOP‑RIGHT corner (anchor = "NE") -------------------------
+  --     ---------------------------------------------------------------------------
+  --     local W = require("screenkey")
+  --     W.setup({
+  --       win_opts = {
+  --         -- put the *north‑east* corner of the float at the very top‑right cell
+  --         row      = 0,                         -- 0 == first editor row :contentReference[oaicite:0]{index=0}
+  --         col      = vim.o.columns - 1,         -- right‑most screen column
+  --         relative = "editor",
+  --         anchor   = "NE",                      -- <‑‑ key bit ☝︎ :contentReference[oaicite:1]{index=1}
+  --         width    = 100,
+  --         height   = 1,
+  --         border   = "single",
+  --         title    = "Keyboard Input",
+  --         title_pos= "center",
+  --         style    = "minimal",
+  --         focusable= false,
+  --         noautocmd= false,
+  --         zindex   = 60,                        -- keep it above most pop‑ups
+  --       },
+  --
+  --       ------------------------------------------------------------------------
+  --       -- 2.  Make every keypress trigger a redraw ----------------------------
+  --       ------------------------------------------------------------------------
+  --       -- Screenkey already intercepts <Esc>, <CR> … but some plugins feed
+  --       -- input through low‑level APIs that never reach it.  By piggy‑backing
+  --       -- on Neovim ≥ 0.10’s `vim.on_key()` we can refresh on *all* input
+  --       -- (the callback fires *before* mappings are applied) :contentReference[oaicite:2]{index=2}
+  --       ------------------------------------------------------------------------
+  --       -- redrawing      = true,   -- (fictional option to remind ourselves)
+  --       compress_after = 6,      -- disable time‑based compression entirely
+  --       clear_after    = 10,     -- keep the previous behaviour
+  --       group_mappings = true,   -- treat “gg”, “cc”, etc. as a single combo :contentReference[oaicite:3]{index=3}
+  --       disable        = {
+  --         filetypes = {},
+  --         buftypes  = {},
+  --         events    = false,
+  --       },
+  --     })
+  --
+  --     -- Force‑redraw hook
+  --     local ns = vim.api.nvim_create_namespace("screenkey_force_redraw")
+  --     vim.on_key(function()
+  --       if W.is_active() then
+  --         vim.schedule(W.redraw)                -- run outside low‑level input
+  --       end
+  --     end, ns)
+  --
+  --     --------------------------------------------------------------------------
+  --     -- 3.  Keybinding: <leader><leader><leader> toggles Screenkey ------------
+  --     --------------------------------------------------------------------------
+  --     vim.keymap.set(
+  --       "n",
+  --       "<leader><leader><leader>K",
+  --       W.toggle,
+  --       { desc = "Toggle Screenkey" }           -- helpful for which‑key lists
+  --     )
+  --   end,
+  -- },
   {
     "OXY2DEV/markview.nvim",
     lazy = false,
+    config = function()
+      require("markview.extras.checkboxes").setup({
+        --- Default checkbox state(used when adding checkboxes).
+        ---@type string
+        default = "X",
 
+        --- Changes how checkboxes are removed.
+        ---@type
+        ---| "disable" Disables the checkbox.
+        ---| "checkbox" Removes the checkbox.
+        ---| "list_item" Removes the list item markers too.
+        remove_style = "disable",
+
+        --- Various checkbox states.
+        ---
+        --- States are in sets to quickly change between them
+        --- when there are a lot of states.
+        ---@type string[][]
+        states = {
+          { " ", "/", "X" },
+          { "<", ">" },
+          { "?", "!", "*" },
+          { '"' },
+          { "l", "b", "i" },
+          { "S", "I" },
+          { "p", "c" },
+          { "f", "k", "w" },
+          { "u", "d" }
+        }
+      })
+    end,
     -- For blink.cmp's completion
     -- source
     dependencies = {
       "saghen/blink.cmp"
     },
   },
-  {
-    "petertriho/nvim-scrollbar",
-    config = function()
-      local colors = require("tokyonight.colors").setup()
-      require("scrollbar").setup({
-        show = true,
-        show_in_active_only = false,
-        set_highlights = true,
-        folds = 1000, -- handle folds, set to number to disable folds if no. of lines in buffer exceeds this
-        max_lines = false, -- disables if no. of lines in buffer exceeds this
-        hide_if_all_visible = true, -- Hides everything if all lines are visible
-        throttle_ms = 100,
-        handle = {
-          text = " ",
-          blend = 50, -- Integer between 0 and 100. 0 for fully opaque and 100 to full transparent. Defaults to 30.
-          color = nil,
-          color_nr = nil, -- cterm
-          highlight = "CursorColumn",
-          hide_if_all_visible = true, -- Hides handle if all lines are visible
-        },
-        marks = {
-          Cursor = {
-            text = "•",
-            priority = 0,
-            gui = nil,
-            color = nil,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "Normal",
-          },
-          Search = {
-            text = { "-", "=" },
-            priority = 1,
-            gui = nil,
-            color = colors.orange,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "Search",
-          },
-          Error = {
-            text = { "-", "=" },
-            priority = 2,
-            gui = nil,
-            color = colors.error,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "DiagnosticVirtualTextError",
-          },
-          Warn = {
-            text = { "-", "=" },
-            priority = 3,
-            gui = nil,
-            color = colors.warning,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "DiagnosticVirtualTextWarn",
-          },
-          Info = {
-            text = { "-", "=" },
-            priority = 4,
-            gui = nil,
-            color = colors.info,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "DiagnosticVirtualTextInfo",
-          },
-          Hint = {
-            text = { "-", "=" },
-            priority = 5,
-            gui = nil,
-            color = colors.hint,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "DiagnosticVirtualTextHint",
-          },
-          Misc = {
-            text = { "-", "=" },
-            priority = 6,
-            gui = nil,
-            color = colors.purple,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "Normal",
-          },
-          GitAdd = {
-            text = "┆",
-            priority = 7,
-            gui = nil,
-            color = nil,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "GitSignsAdd",
-          },
-          GitChange = {
-            text = "┆",
-            priority = 7,
-            gui = nil,
-            color = nil,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "GitSignsChange",
-          },
-          GitDelete = {
-            text = "▁",
-            priority = 7,
-            gui = nil,
-            color = nil,
-            cterm = nil,
-            color_nr = nil, -- cterm
-            highlight = "GitSignsDelete",
-          },
-        },
-        excluded_buftypes = {
-          "terminal",
-        },
-        excluded_filetypes = {
-          "dropbar_menu",
-          "dropbar_menu_fzf",
-          "DressingInput",
-          "cmp_docs",
-          "cmp_menu",
-          "noice",
-          "prompt",
-          "TelescopePrompt",
-        },
-        autocmd = {
-          render = {
-            "BufWinEnter",
-            "TabEnter",
-            "TermEnter",
-            "WinEnter",
-            "CmdwinLeave",
-            "TextChanged",
-            "VimResized",
-            "WinScrolled",
-          },
-          clear = {
-            "BufWinLeave",
-            "TabLeave",
-            "TermLeave",
-            "WinLeave",
-          },
-        },
-        handlers = {
-          cursor = true,
-          diagnostic = true,
-          gitsigns = false, -- Requires gitsigns
-          handle = true,
-          search = false, -- Requires hlslens
-          ale = false, -- Requires ALE
-        },
-      })
-    end
-  },
+  -- {
+  --   "petertriho/nvim-scrollbar",
+  --   config = function()
+  --     local colors = require("tokyonight.colors").setup()
+  --     require("scrollbar").setup({
+  --       show = true,
+  --       show_in_active_only = false,
+  --       set_highlights = true,
+  --       folds = 1000, -- handle folds, set to number to disable folds if no. of lines in buffer exceeds this
+  --       max_lines = false, -- disables if no. of lines in buffer exceeds this
+  --       hide_if_all_visible = true, -- Hides everything if all lines are visible
+  --       throttle_ms = 100,
+  --       handle = {
+  --         text = " ",
+  --         blend = 50, -- Integer between 0 and 100. 0 for fully opaque and 100 to full transparent. Defaults to 30.
+  --         color = nil,
+  --         color_nr = nil, -- cterm
+  --         highlight = "CursorColumn",
+  --         hide_if_all_visible = true, -- Hides handle if all lines are visible
+  --       },
+  --       marks = {
+  --         Cursor = {
+  --           text = "•",
+  --           priority = 0,
+  --           gui = nil,
+  --           color = nil,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "Normal",
+  --         },
+  --         Search = {
+  --           text = { "-", "=" },
+  --           priority = 1,
+  --           gui = nil,
+  --           color = colors.orange,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "Search",
+  --         },
+  --         Error = {
+  --           text = { "-", "=" },
+  --           priority = 2,
+  --           gui = nil,
+  --           color = colors.error,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "DiagnosticVirtualTextError",
+  --         },
+  --         Warn = {
+  --           text = { "-", "=" },
+  --           priority = 3,
+  --           gui = nil,
+  --           color = colors.warning,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "DiagnosticVirtualTextWarn",
+  --         },
+  --         Info = {
+  --           text = { "-", "=" },
+  --           priority = 4,
+  --           gui = nil,
+  --           color = colors.info,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "DiagnosticVirtualTextInfo",
+  --         },
+  --         Hint = {
+  --           text = { "-", "=" },
+  --           priority = 5,
+  --           gui = nil,
+  --           color = colors.hint,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "DiagnosticVirtualTextHint",
+  --         },
+  --         Misc = {
+  --           text = { "-", "=" },
+  --           priority = 6,
+  --           gui = nil,
+  --           color = colors.purple,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "Normal",
+  --         },
+  --         GitAdd = {
+  --           text = "┆",
+  --           priority = 7,
+  --           gui = nil,
+  --           color = nil,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "GitSignsAdd",
+  --         },
+  --         GitChange = {
+  --           text = "┆",
+  --           priority = 7,
+  --           gui = nil,
+  --           color = nil,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "GitSignsChange",
+  --         },
+  --         GitDelete = {
+  --           text = "▁",
+  --           priority = 7,
+  --           gui = nil,
+  --           color = nil,
+  --           cterm = nil,
+  --           color_nr = nil, -- cterm
+  --           highlight = "GitSignsDelete",
+  --         },
+  --       },
+  --       excluded_buftypes = {
+  --         "terminal",
+  --       },
+  --       excluded_filetypes = {
+  --         "dropbar_menu",
+  --         "dropbar_menu_fzf",
+  --         "DressingInput",
+  --         "cmp_docs",
+  --         "cmp_menu",
+  --         "noice",
+  --         "prompt",
+  --         "TelescopePrompt",
+  --       },
+  --       autocmd = {
+  --         render = {
+  --           "BufWinEnter",
+  --           "TabEnter",
+  --           "TermEnter",
+  --           "WinEnter",
+  --           "CmdwinLeave",
+  --           "TextChanged",
+  --           "VimResized",
+  --           "WinScrolled",
+  --         },
+  --         clear = {
+  --           "BufWinLeave",
+  --           "TabLeave",
+  --           "TermLeave",
+  --           "WinLeave",
+  --         },
+  --       },
+  --       handlers = {
+  --         cursor = true,
+  --         diagnostic = true,
+  --         gitsigns = false, -- Requires gitsigns
+  --         handle = true,
+  --         search = false, -- Requires hlslens
+  --         ale = false, -- Requires ALE
+  --       },
+  --     })
+  --   end
+  -- },
   {
     "y3owk1n/undo-glow.nvim",
     event = { "VeryLazy" },
@@ -1119,7 +1238,7 @@ return {
     opts = {
       animation = {
         enabled = true,
-        duration = 100,
+        duration = 50,
         animtion_type = "zoom",
         window_scoped = true,
       },
@@ -1365,58 +1484,28 @@ return {
       -- add any custom options here
     }
   },
-  {
-    "hat0uma/csvview.nvim",
-    ---@module "csvview"
-    ---@type CsvView.Options
-    opts = {
-      parser = { comments = { "#", "//" } },
-      keymaps = {
-        -- Text objects for selecting fields
-        textobject_field_inner = { "if", mode = { "o", "x" } },
-        textobject_field_outer = { "af", mode = { "o", "x" } },
-        -- Excel-like navigation:
-        -- Use <Tab> and <S-Tab> to move horizontally between fields.
-        -- Use <Enter> and <S-Enter> to move vertically between rows and place the cursor at the end of the field.
-        -- Note: In terminals, you may need to enable CSI-u mode to use <S-Tab> and <S-Enter>.
-        jump_next_field_end = { "<Tab>", mode = { "n", "v" } },
-        jump_prev_field_end = { "<S-Tab>", mode = { "n", "v" } },
-        jump_next_row = { "<Enter>", mode = { "n", "v" } },
-        jump_prev_row = { "<S-Enter>", mode = { "n", "v" } },
-      },
-    },
-    cmd = { "CsvViewEnable", "CsvViewDisable", "CsvViewToggle" },
-  },
-  {
-    "stevearc/oil.nvim",
-    lazy = false,        -- load eagerly so FileType=oil autocmds are predictable
-    opts = {
-      default_file_explorer = true,  -- keep netrw available
-      view_options = {
-        show_hidden = false,      -- list files that start with “.”
-      },
-      --  🚨  These keymaps live ONLY inside an Oil buffer 
-      keymaps = {
-        ["s"]        = false,                 -- free `s` for Flash
-        ["-"]        = false,                 -- free `-` for Flash
-        ["<BS>"]     = "actions.parent",      -- Backspace → parent dir
-        ["<leader>s"] = "actions.change_sort", -- <leader>s → sort toggle
-        ["g."] = "actions.toggle_hidden",
-        ["<leader><C-s>"] = false,
-        ["<leader><C-h>"] = false,
-        ["<leader><C-l>"] = false,
-        ["<C-h>"] = false,
-        ["<C-k>"] = false,
-        ["<C-l>"] = false,
-        ["<C-j>"] = false,
-        -- (optional) keep `gs` mapped to sort as an alias:
-        -- ["gs"] = "actions.change_sort",
-      },
-    },
-    config = function(_, opts)
-      require("oil").setup(opts)
-    end
-  },
+  -- {
+  --   "hat0uma/csvview.nvim",
+  --   ---@module "csvview"
+  --   ---@type CsvView.Options
+  --   opts = {
+  --     parser = { comments = { "#", "//" } },
+  --     keymaps = {
+  --       -- Text objects for selecting fields
+  --       textobject_field_inner = { "if", mode = { "o", "x" } },
+  --       textobject_field_outer = { "af", mode = { "o", "x" } },
+  --       -- Excel-like navigation:
+  --       -- Use <Tab> and <S-Tab> to move horizontally between fields.
+  --       -- Use <Enter> and <S-Enter> to move vertically between rows and place the cursor at the end of the field.
+  --       -- Note: In terminals, you may need to enable CSI-u mode to use <S-Tab> and <S-Enter>.
+  --       jump_next_field_end = { "<Tab>", mode = { "n", "v" } },
+  --       jump_prev_field_end = { "<S-Tab>", mode = { "n", "v" } },
+  --       jump_next_row = { "<Enter>", mode = { "n", "v" } },
+  --       jump_prev_row = { "<S-Enter>", mode = { "n", "v" } },
+  --     },
+  --   },
+  --   cmd = { "CsvViewEnable", "CsvViewDisable", "CsvViewToggle" },
+  -- },
   -- 1. Perceptually-uniform colour maths
   {
     "hsluv/hsluv-lua",
@@ -1450,45 +1539,6 @@ return {
     init = function()
       -- optional: skip the standard prompt entirely and let the plugin handle it
       vim.opt.shortmess:append("A")
-    end,
-  },
-  {
-    "roodolv/markdown-toggle.nvim",
-    config = function()
-      require("markdown-toggle").setup({
-        -- If true, the auto-setup for the default keymaps is enabled
-        use_default_keymaps = false,
-        -- The keymaps are valid only for these filetypes
-        filetypes = { "markdown", "markdown.mdx" },
-
-        -- The list marks table used in cycle-mode (list_table[1] is used as the default list-mark)
-        list_table = { "-", "+", "*", "=" },
-        -- Cycle the marks in user-defined table when toggling lists
-        cycle_list_table = false,
-
-        -- The checkbox marks table used in cycle-mode (box_table[1] is used as the default checked-state)
-        box_table = { "x", "~", "!", ">" },
-        -- Cycle the marks in user-defined table when toggling checkboxes
-        cycle_box_table = false,
-        -- A bullet list is toggled before turning into a checkbox (similar to how it works in Obsidian).
-        list_before_box = false,
-
-        -- The heading marks table used in `markdown-toggle.heading`
-        heading_table = { "#", "##", "###", "####", "#####" },
-
-        -- Skip blank lines and headings in Visual mode (except for `quote()`)
-        enable_blankhead_skip = true,
-        -- Insert an indented quote for new lines within quoted text
-        enable_inner_indent = false,
-        -- Toggle only unmarked lines first
-        enable_unmarked_only = true,
-        -- Automatically continue lists on new lines
-        enable_autolist = false,
-        -- Maintain checkbox state when continuing lists
-        enable_auto_samestate = false,
-        -- Dot-repeat for toggle functions in Normal mode
-        enable_dot_repeat = true,
-      })
     end,
   },
   {

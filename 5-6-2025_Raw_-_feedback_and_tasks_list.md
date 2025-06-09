@@ -616,3 +616,5 @@ Please remember to retain:
 > If you get this right... NumHi will be _unlike any other Neovim plugin_.
 
 Take your time.
+
+Take your time. Browse the plugin development documentation. see what you can do in the environment since you have neovim there. Take your time and cook. I want to let you cook.
