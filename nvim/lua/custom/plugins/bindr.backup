@@ -1,0 +1,12 @@
+return {
+  'Crackerfracks/bindr.nvim',
+  dependencies = { 'jakewvincent/mkdnflow.nvim' }, -- optional, recommended for base markdown link support
+  config = function()
+    require('bindr').setup {
+      -- optional: override defaults, e.g.
+      -- filename_mode = "slug",
+      -- id_prefix = true,
+      -- preview = { auto = true, layout = "bottomright" },
+    }
+  end,
+}
