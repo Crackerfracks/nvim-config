@@ -15,7 +15,7 @@ return {
       enabled = false,
       easing = 'outInBounce',
       duration = 20,
-      fps = 60,
+      fps = 30,
     },
     bigfile = {
       enabled = true,

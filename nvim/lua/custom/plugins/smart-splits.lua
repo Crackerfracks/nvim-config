@@ -11,7 +11,7 @@ return {
     -- Ignored filetypes (only while resizing)
     ignored_filetypes = { 'NvimTree' },
     -- the default number of lines/columns to resize by at a time
-    default_amount = 3,
+    default_amount = 5,
     -- Desired behavior when your cursor is at an edge and you
     -- are moving towards that same edge:
     -- 'wrap' => Wrap to opposite side

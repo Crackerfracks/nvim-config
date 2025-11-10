@@ -1,7 +1,7 @@
 return {
   'crusj/bookmarks.nvim',
   keys = {
-    { '<tab><tab>', mode = { 'n' } },
+    { '<leader><tab><tab>', mode = { 'n' } },
   },
   branch = 'main',
   dependencies = { 'nvim-web-devicons' },
