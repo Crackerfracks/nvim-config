@@ -32,6 +32,24 @@ return {
         shade = 4,
       },
     },
+    remote_op = {
+      restore = true,
+      motion = true,
+    },
+    modes = {
+      remote = {
+        jump = {
+          autojump = false,
+        },
+        label = {
+          autojump = false,
+        },
+        remote_op = {
+          restore = true,
+          motion = true,
+        },
+      },
+    },
   },
   -- stylua: ignore
   keys = {
@@ -67,7 +85,6 @@ return {
       "<tab>",
       mode = {
         "n",
-        "i",     --
       },
       function() -- <-- Why are some functions defined as variables, some are given names as an actual function, and still others like this are passed raw?
         local Flash = require("flash")
