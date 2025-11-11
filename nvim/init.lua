@@ -190,6 +190,16 @@ vim.keymap.set('n', '<leader>Y', '"+Y', {
   desc = 'Yank to end of line to system clipboard',
 })
 
+do
+  local remote_ops = require 'custom.remote_ops'
+  vim.keymap.set('n', '<leader>p', function()
+    remote_ops.start_put('p')
+  end, { desc = 'Remote put after selection' })
+  vim.keymap.set('n', '<leader>P', function()
+    remote_ops.start_put('P')
+  end, { desc = 'Remote put before selection' })
+end
+
 -- Delete to void register
 vim.keymap.set('n', '<leader><leader>d', '"_d', {
   desc = 'Delete into void register',

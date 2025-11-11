@@ -32,24 +32,24 @@ return {
         shade = 4,
       },
     },
-    -- remote_op = {
-    --   restore = true,
-    --   motion = true,
-    -- },
-    -- modes = {
-    --   remote = {
-    --     jump = {
-    --       autojump = false,
-    --     },
-    --     label = {
-    --       autojump = false,
-    --     },
-    --     remote_op = {
-    --       restore = true,
-    --       motion = true,
-    --     },
-    --   },
-    -- },
+    remote_op = {
+      restore = true,
+      motion = true,
+    },
+    modes = {
+      remote = {
+        jump = {
+          autojump = false,
+        },
+        label = {
+          autojump = false,
+        },
+        remote_op = {
+          restore = true,
+          motion = true,
+        },
+      },
+    },
   },
   -- stylua: ignore
   keys = {

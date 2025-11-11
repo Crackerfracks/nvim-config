@@ -6,5 +6,21 @@ return {
       cursor = false,
       modemsg = true,
     },
+    configs = {
+      submodes = {
+        modes = {
+          InsertRemoteOps = {
+            hl = {
+              ModeMsg = { link = 'WarningMsg' },
+            },
+          },
+          WordMotionRestore = {
+            hl = {
+              ModeMsg = { link = 'Question' },
+            },
+          },
+        },
+      },
+    },
   },
 }
