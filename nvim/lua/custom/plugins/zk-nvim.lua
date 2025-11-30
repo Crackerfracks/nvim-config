@@ -10,7 +10,7 @@ return {
         -- `config` is passed to `vim.lsp.start(config)`
         config = {
           name = 'zk',
-          cmd = { 'zk', 'lsp' },
+          cmd = { '/home/svaughn/.portable/zk/zk', 'lsp' },
           filetypes = { 'markdown' },
           -- on_attach = ...
           -- etc, see `:h vim.lsp.start()`
@@ -22,6 +22,6 @@ return {
         },
       },
     }
-    require('zk_follow_create').setup()
+    -- require('zk_follow_create').setup()
   end,
 }

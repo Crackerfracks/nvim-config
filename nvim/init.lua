@@ -8,6 +8,9 @@ vim.g.maplocalleader = ','
 vim.g.loaded_netrw = 1 -- hard-disable netrw runtime files
 vim.g.loaded_netrwPlugin = 1
 
+-- Set clipboard tool for Wayland
+vim.g.clipboard = 'wl-copy'
+
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 -- [[ Setting options ]]
@@ -38,13 +41,13 @@ end)
 
 -- Enable break indent
 vim.opt.breakindent = true
-vim.opt.textwidth = 80
+vim.opt.textwidth = 0
 
 -- Fix indents to use four spaces everywhere because fuck not doing that
 vim.o.expandtab = true
-vim.o.tabstop = 4
-vim.o.shiftwidth = 4
-vim.o.softtabstop = 4
+vim.o.tabstop = 2
+vim.o.shiftwidth = 2
+vim.o.softtabstop = 2
 -- Save undo history
 vim.opt.undofile = true
 
@@ -97,26 +100,28 @@ end, { desc = 'Toggle lazyredraw' })
 
 -- Clear highlights on search when pressing <Esc> in normal mode
 --  See `:help hlsearch`
-vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { desc = 'Clear search match highlights' })
 
 -- nvumi Natural Language calculator
+
 vim.keymap.set('n', '<leader><leader>on', '<CMD>Nvumi<CR>', {
   desc = '[O]pen [N]vumi',
 })
 
 -- Remapping the hyphen ('-') for Jump To Line in flash.nvim
-vim.keymap.set({
-  'n',
-  'x',
-  'o',
-}, '<leader>-', '-')
+-- DOES NOTHING, `<leader>-` is totally open for binding!!
+-- vim.keymap.set({
+--   'n',
+--   'x',
+--   'o',
+-- }, '<leader>-', '-')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, {
   desc = 'Open diagnostic [Q]uickfix list',
 })
 
-vim.api.nvim_set_keymap('n', '<leader><leader>as', ':ASToggle<CR>', {})
+vim.api.nvim_set_keymap('n', '<leader><leader>as', ':ASToggle<CR>', { desc = 'Toggle Autosave' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -284,6 +289,7 @@ function ToggleVirtualText()
 end
 
 vim.api.nvim_set_keymap('n', '<leader><leader>vt', ':lua ToggleVirtualText()<CR>', {
+  desc = 'Toggle Virtual Text',
   noremap = true,
   silent = true,
 })
@@ -393,6 +399,7 @@ require('lazy').setup({
     'folke/which-key.nvim',
     event = 'VimEnter', -- Sets the loading event to 'VimEnter'
     opts = {
+      preset = 'helix',
       -- delay between pressing a key and opening which-key (milliseconds)
       -- this setting is independent of vim.opt.timeoutlen
       delay = 0,
@@ -470,6 +477,11 @@ require('lazy').setup({
             'n',
             'v',
           },
+        },
+      },
+      win = {
+        wo = {
+          winblend = 20, -- value between 0-100 0 for fully opaque and 100 for fully transparent
         },
       },
       keys = {
@@ -1104,7 +1116,7 @@ require('lazy').setup({
       }
 
       local is_many_wins = function(sizes_from, sizes_to)
-        return vim.tbl_count(sizes_from) >= 3
+        return vim.tbl_count(sizes_from) >= 2
       end
       local animate = require 'mini.animate'
       animate.setup {
@@ -1113,16 +1125,31 @@ require('lazy').setup({
         },
         scroll = {
           enable = true,
-          timing = animate.gen_timing.quadratic { easing = 'out', duration = 3, unit = 'step' },
+          timing = animate.gen_timing.exponential { easing = 'out', duration = 3, unit = 'step' },
           subscroll = animate.gen_subscroll.equal { max_output_steps = 15 },
         },
         resize = {
-          enable = false,
-          timing = animate.gen_timing.quadratic { easing = 'in', duration = 3, unit = 'step' },
-          subscroll = animate.gen_subscroll.equal { max_output_steps = 30 },
+          enable = true,
+          timing = animate.gen_timing.quartic { easing = 'out', duration = 90, unit = 'total' },
+          subscroll = animate.gen_subresize.equal { max_output_steps = 15 },
         },
         open = {
-          enable = false,
+          enable = true,
+          -- Animate for 400 milliseconds with quadratic easing
+          timing = animate.gen_timing.quadratic { duration = 400, unit = 'total' },
+          -- Animate with wiping from nearest edge instead of default static one
+          winconfig = animate.gen_winconfig.wipe { direction = 'from_edge' },
+          -- Make bigger windows more transparent
+          winblend = animate.gen_winblend.linear { from = 20, to = 100 },
+        },
+        close = {
+          enable = true,
+          -- Animate for 400 milliseconds with linear easing
+          timing = animate.gen_timing.quadratic { duration = 400, unit = 'total' },
+          -- Animate with wiping to nearest edge instead of default static one
+          winconfig = animate.gen_winconfig.wipe { direction = 'to_edge' },
+          -- Make bigger windows more transparent
+          winblend = animate.gen_winblend.linear { from = 100, to = 20 },
         },
       }
 
@@ -1255,36 +1282,41 @@ require('lazy').setup({
   },
 })
 
-vim.keymap.set('n', '<A-h>', require('smart-splits').resize_left)
-vim.keymap.set('n', '<A-j>', require('smart-splits').resize_down)
-vim.keymap.set('n', '<A-k>', require('smart-splits').resize_up)
-vim.keymap.set('n', '<A-l>', require('smart-splits').resize_right)
--- moving between split
-vim.keymap.set('n', '<C-h>', require('smart-splits').move_cursor_left)
-vim.keymap.set('n', '<C-j>', require('smart-splits').move_cursor_down)
-vim.keymap.set('n', '<C-k>', require('smart-splits').move_cursor_up)
-vim.keymap.set('n', '<C-l>', require('smart-splits').move_cursor_right)
-vim.keymap.set('n', '<C-\\>', require('smart-splits').move_cursor_previous)
--- swapping buffers between window
-vim.keymap.set('n', '<leader><leader>h', require('smart-splits').swap_buf_left)
-vim.keymap.set('n', '<leader><leader>j', require('smart-splits').swap_buf_down)
-vim.keymap.set('n', '<leader><leader>k', require('smart-splits').swap_buf_up)
-vim.keymap.set('n', '<leader><leader>l', require('smart-splits').swap_buf_right)
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'mardown', 'markdown.mdx' },
+  callback = function()
+    vim.opt_local.autoident = true
+  end,
+})
 
--- require('lspconfig').glsl_analyzer.setup {}
--- -- vim.lsp.enable 'copilot-language-server'
---
--- vim.lsp.config('slangd', {
---   settings = {
---     slang = {
---       filetypes = { 'hlsl', 'shaderslang', 'frag' },
---       predefinedMacros = { 'MY_VALUE_MACRO=1' },
---       inlayHints = {
---         deducedTypes = true,
---         parameterNames = true,
---       },
---     },
---   },
--- })
+--- - - - - - - - -
+--- PLUGIN KEYMAPS| <|-- USER MESSAGE TO ASSISTANT: I need ASCII section banners
+--- - - - - - - - -
+
+-- `smart-splits.nvim`: Resizing|Navigating|Rearranging Splits & Panes <|Banner
+vim.api.nvim_set_keymap('n', '<A-h>', '<CMD>SmartResizeLeft<CR>', { desc = 'Resize Split (Left)' })
+vim.api.nvim_set_keymap('n', '<A-j>', '<CMD>SmartResizeDown<CR>', { desc = 'Resize Split (Down)' })
+vim.api.nvim_set_keymap('n', '<A-k>', '<CMD>SmartResizeUp<CR>', { desc = 'Resize Split (Up)' })
+vim.api.nvim_set_keymap('n', '<A-l>', '<CMD>SmartResizeRight<CR>', { desc = 'Resize Split (Right)' })
+-- moving between split
+vim.api.nvim_set_keymap('n', '<C-h>', '<CMD>SmartCursorMoveLeft<CR>', { desc = 'Cursor to Window (Left)' })
+vim.api.nvim_set_keymap('n', '<C-j>', '<CMD>SmartCursorMoveDown<CR>', { desc = 'Cursor to Window (Down)' })
+vim.api.nvim_set_keymap('n', '<C-k>', '<CMD>SmartCursorMoveUp<CR>', { desc = 'Cursor to Window (Up)' })
+vim.api.nvim_set_keymap('n', '<C-l>', '<CMD>SmartCursorMoveRight<CR>', { desc = 'Cursor to Window (Right)' })
+-- swapping buffers between window
+vim.api.nvim_set_keymap('n', '<leader><leader>h', '<CMD>SmartSwapLeft<CR>', { desc = 'Swap w/Window to left' })
+vim.api.nvim_set_keymap('n', '<leader><leader>j', '<CMD>SmartSwapDown<CR>', { desc = 'Swap w/Window below' })
+vim.api.nvim_set_keymap('n', '<leader><leader>k', '<CMD>SmartSwapUp<CR>', { desc = 'Swap w/Window above' })
+vim.api.nvim_set_keymap('n', '<leader><leader>l', '<CMD>SmartSwapRight<CR>', { desc = 'Swap w/Window to right' })
+
+-- `grapple.nvim`: Quick access to important files w/picker + keybinds  <|Banner
+-- PLACEHOLDER FOR GRAPPLE BINDINGS
+-- PLACEHOLDER FOR GRAPPLE BINDINGS
+-- PLACEHOLDER FOR GRAPPLE BINDINGS
+-- PLACEHOLDER FOR GRAPPLE BINDINGS
+
+-- `portal.nvim`: Navigate the Vim Jumplist easily <|Banner
+vim.keymap.set('n', '<leader>o', '<CMD>Portal jumplist backward<CR>', { desc = 'Backward Jumplist (Portal)' })
+vim.keymap.set('n', '<leader>i', '<CMD>Portal jumplist forward<CR>', { desc = 'Forward Jumplist (Portal)' })
 
 -- vim: ts=2 sts=2 sw=2 et

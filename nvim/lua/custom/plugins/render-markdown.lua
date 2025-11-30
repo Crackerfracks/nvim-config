@@ -40,16 +40,39 @@ return {
           scope_highlight = nil,
         },
         custom = {
-          todo = {
-            raw = '[-]',
-            rendered = '󰥔 ',
-            highlight = 'RenderMarkdownTodo',
-            scope_highlight = nil,
-          },
           question = {
             raw = '[?]',
-            rendered = '󰆆 ',
-            highlight = 'RenderMarkdownQuestion',
+            rendered = '󰟶 ',
+            highlight = 'RenderMarkdownHint',
+            scope_highlight = nil,
+          },
+          idea = {
+            raw = '[i]',
+            rendered = '💡',
+            highlight = 'RenderMarkdownSuccess',
+          },
+          queued = {
+            raw = '[&]',
+            rendered = '󰋇 ',
+            highlight = 'RenderMarkdownSuccess',
+            scope_highlight = nil,
+          },
+          in_progress = {
+            raw = '[^]',
+            rendered = ' ',
+            highlight = 'RenderMarkdownH2',
+            scope_highlight = nil,
+          },
+          blocked = {
+            raw = '[!]',
+            rendered = '‼',
+            highlight = 'RenderMarkdownWarn',
+            scope_highlight = nil,
+          },
+          cancelled = {
+            raw = '[C]',
+            rendered = '󰂭 ',
+            highlight = 'RenderMarkdownError',
             scope_highlight = nil,
           },
         },

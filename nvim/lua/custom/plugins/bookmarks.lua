@@ -1,5 +1,6 @@
 return {
   'crusj/bookmarks.nvim',
+  lazy = false,
   keys = {
     { '<leader><tab><tab>', mode = { 'n' } },
   },
@@ -36,7 +37,7 @@ return {
       border_style = 'single', -- border style: "single", "double", "rounded"
       hl = {
         border = 'TelescopeBorder', -- border highlight
-        cursorline = 'guibg=Gray guifg=White', -- cursorline highlight
+        cursorline = 'guibg=DarkGreen guifg=LightCyan', -- cursorline highlight
       },
       datetime_format = '%Y-%m-%d %H:%M:%S', -- os.date
       -- •	%Y: Four-digit year

@@ -51,8 +51,25 @@ return {
       -- I do this so when working with dadbod the file is not saved every time
       -- I make a change, and a SQL query executed
       -- Run `:set filetype?` on a dadbod query to make sure of the filetype
+      local excluded_filetypes = {
+        'gitcommit',
+        'NvimTree',
+        'Outline',
+        'TelescopePrompt',
+        'alpha',
+        'dashboard',
+        'lazygit',
+        'oil',
+        'prompt',
+        'toggleterm',
+        'harpoon',
+      }
       local filetype = vim.bo[buf].filetype
       if filetype == 'harpoon' or filetype == 'mysql' then
+        return false
+      end
+
+      if vim.tbl_contains(excluded_filetypes, filetype) then
         return false
       end
 

@@ -22,15 +22,4 @@ return {
       desc = 'Search commands w/Legendary',
     }),
   },
-  -- config = function()
-  --   local legendary = require 'legendary'
-  --   legendary.setup {
-  --     extensions = {
-  --       which_key = {
-  --         auto_register = true,
-  --       }, -- new location
-  --       lazy_nvim = true,
-  --     },
-  --   }
-  -- end,
 }
